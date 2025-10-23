@@ -53,91 +53,11 @@
 
 ## 快速开始
 
-### 使用 Docker Run
+### 使用 Docker
+[Docker安装](https://github.com/qicfan/qmediasync/wiki/Docker%E5%AE%89%E8%A3%85)
 
-```bash
-# 创建数据目录
-mkdir -p {root_dir}/qmediasync/config/logs/libs
-mkdir -p {root_dir}/qmediasync/config/libs
-
-
-# 运行容器
-docker run -d \
-  --name qmediasync \
-  -p 12333:12333 \
-  -p 12332:12332 \
-  -p 8095:8095 \
-  -p 8094:8094 \
-  -v /vol1/1000/docker/qmediasync/config:/app/config \
-  -v /vol1/1000/网盘:/media \
-  -e TZ=Asia/Shanghai \
-  --restart unless-stopped \
-  qicfan/qmediasync:latest
-```
-
-### 使用 Docker Compose
-
-1. 创建 `docker-compose.yml` 文件（见下方示例）
-
-```
-services:
-    qmediasync:
-        image: qicfan/qmediasync:latest
-        container_name: qmediasync
-        restart: unless-stopped
-        ports:
-            - "12333:12333"
-            - "12332:12332"
-            - "8095:8095"
-            - "8094:8094"
-        volumes:
-            - /vol1/1000/docker/qmediasync/config:/app/config
-            - /vol2/1000/网盘:/media
-        environment:
-            - TZ=Asia/Shanghai
-
-networks:
-    default:
-        name: qmediasync
-```
-
-2. 运行以下命令：
-
-```bash
-# 启动服务
-docker-compose up -d
-
-# 查看日志
-docker-compose logs -f
-
-# 停止服务
-docker-compose down
-```
-
-## 目录映射说明
-
-| 容器内路径    | 宿主机路径                           | 说明                     |
-| ------------- | ------------------------------------ | ------------------------ |
-| `/app/config` | `/vol1/1000/docker/qmediasync/config` | 配置文、数据、日志目录   |
-| `/media`      | `/vol1/1000/网盘`                    | 存放 STRM 和元数据的目录 |
-
-## 环境变量
-
-| 变量名 | 默认值          | 说明     |
-| ------ | --------------- | -------- |
-| `TZ`   | `Asia/Shanghai` | 时区设置 |
-
-## 端口说明
-
-- **12333**: HTTP 服务端口
-- **12332**: HTTPS 服务端口
-- **8095**: Emby代理接口，http协议
-- **8094**: Emby代理接口，https协议
-
-## 版本标签
-
-- `latest` - 最新发布版本
-- `v1.0.0` - 具体版本号（对应 GitHub Release）
+### 不使用 Docker
+[非Docker安装](https://github.com/qicfan/qmediasync/wiki/%E9%9D%9EDocker%E5%AE%89%E8%A3%85)
 
 ## 首次使用
 
