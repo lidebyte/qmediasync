@@ -59,6 +59,10 @@ sudo ./build_and_release.sh -v vx.xx.xx
 
 - [QMediaSync-Frontend](https://github.com/qicfan/q115-strm-frontend)
 
+## 贡献者
+
+![Contributors](https://contrib.rocks/image?repo=qicfan/qmediasync)
+
 ## 请作者喝杯咖啡
 
 ![请作者喝杯咖啡](http://s.mqfamily.top/alipay_wechat.jpg)
