@@ -11,8 +11,8 @@ const (
 	// 超时配置
 	DEFAULT_TIMEOUT = 30 // 秒
 
-	CLIENT_ID     = "8d62b127d23140039c161c384003915c"
-	CLIENT_SECRET = "232b579ee78a4ee19bd5dcf16602600a"
+	CLIENT_ID     = "" // TODO 开源版本留空
+	CLIENT_SECRET = "" // TODO 开源版本留空
 
 	DEFAULTUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
 )
