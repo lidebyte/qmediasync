@@ -6,6 +6,9 @@
 
 - 电报群：[http://t.me/q115_strm](https://t.me/q115_strm)
 - QQ群：1057459156
+- Meow官方频道：使用鸿蒙系统手机扫描下方二维码来关注频道（请用官方浏览器打开）
+  
+  <img src="https://s.mqfamily.top/meow.png" width="200" />
 
 ### 开源版本不包含115开放平台账号，需要自备
 
