@@ -69,15 +69,18 @@ mainloop:
 			helpers.AppLogger.Infof("刮削任务接收到取消信号，退出主循环")
 			// 清空后关闭所有队列
 			// range 会读取所有剩余数据后自动退出
-			for tvshowTask := range t.fileTasks {
-				helpers.AppLogger.Infof("清理剩余电视剧刮削任务 %s", filepath.Base(tvshowTask.mediaFile.TvshowPath))
-				wg.Done()
+			for {
+				select {
+				case tvshowTask := <-t.fileTasks:
+					helpers.AppLogger.Infof("清理剩余电视剧刮削任务 %s", filepath.Base(tvshowTask.mediaFile.TvshowPath))
+					wg.Done()
+				case episodeMediaFileID := <-t.episodeTasks:
+					helpers.AppLogger.Infof("清理剩余集刮削任务 %d", episodeMediaFileID)
+					episodeWg.Done()
+				default:
+					break mainloop
+				}
 			}
-			for episodeMediaFileID := range t.episodeTasks {
-				helpers.AppLogger.Infof("清理剩余集刮削任务 %d", episodeMediaFileID)
-				episodeWg.Done()
-			}
-			break mainloop
 		default:
 			// 从数据库取数据
 			// 扫描阶段已经提取了季和集的序号，这里获取到的是用剧分组的所有数据，需要处理成剧->季的形式
@@ -179,7 +182,7 @@ mainloop:
 func (t *tvShowScrapeImpl) ProcessTvShow(tt *tvshowTask) error {
 	mediaFile := tt.mediaFile
 	// 创建临时目录
-	mediaFile.ScrapeRootPath = filepath.Join(helpers.RootDir, "config", "tmp", "刮削临时文件", fmt.Sprintf("%d", mediaFile.ScrapePathId), "电视剧")
+	mediaFile.ScrapeRootPath = filepath.Join(helpers.ConfigDir, "tmp", "刮削临时文件", fmt.Sprintf("%d", mediaFile.ScrapePathId), "电视剧")
 	if err := os.MkdirAll(mediaFile.ScrapeRootPath, 0777); err != nil {
 		helpers.AppLogger.Errorf("创建临时目录失败: %v", err)
 		return err
@@ -340,7 +343,7 @@ func (t *tvShowScrapeImpl) GetTvshowUploadFiles(mediaFile *models.ScrapeMediaFil
 	for _, im := range imageList {
 		name := t.GetTvshowRealName(mediaFile, im, "image")
 		sPath := filepath.Join(tvshowSourcePath, name)
-		helpers.AppLogger.Infof("图片文件路径 %s", sPath)
+		// helpers.AppLogger.Infof("图片文件路径 %s", sPath)
 		if helpers.PathExists(sPath) {
 			file := uploadFile{
 				ID:         fmt.Sprintf("%d", mediaFile.ID),
@@ -491,8 +494,8 @@ func (t *tvShowScrapeImpl) GenerateTvShowNfo(mediaFile *models.ScrapeMediaFile, 
 			Rating: rates,
 		},
 		UserRating: mediaFile.Media.VoteAverage,
-		Outline:    mediaFile.Media.Overview,
-		Plot:       mediaFile.Media.Overview,
+		Outline:    fmt.Sprintf("<![CDATA[%s]]>", mediaFile.Media.Overview),
+		Plot:       fmt.Sprintf("<![CDATA[%s]]>", mediaFile.Media.Overview),
 		Tagline:    mediaFile.Media.Tagline,
 		Year:       mediaFile.Media.Year,
 		DateAdded:  time.Now().Format("2006-01-02"),

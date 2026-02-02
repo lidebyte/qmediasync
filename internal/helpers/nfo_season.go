@@ -2,8 +2,10 @@ package helpers
 
 import (
 	"encoding/xml"
+	"fmt"
 	"io"
 	"os"
+	"strings"
 )
 
 type TVShowSeason struct {
@@ -33,12 +35,21 @@ func ReadSeasonNfo(r io.Reader) (*TVShowSeason, error) {
 	return &m, nil
 }
 
-func WriteSeasonNfo(m *TVShowSeason, path string) error {
+func WriteSeasonNfo(m *TVShowSeason, filename string) error {
 	xmlHeader := []byte("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\"?>\n")
 	data, err := xml.MarshalIndent(m, "", "  ")
 	if err != nil {
 		return err
 	}
 	content := append(xmlHeader, data...)
-	return os.WriteFile(path, content, 0766)
+	// 将字符串中的实体编码替换回原内容
+	strOutput := string(content)
+	strOutput = strings.Replace(strOutput, "&lt;![CDATA[", "<![CDATA[", -1)
+	strOutput = strings.Replace(strOutput, "]]&gt;", "]]>", -1)
+	err = os.WriteFile(filename, []byte(strOutput), 0766)
+	if err != nil {
+		return fmt.Errorf("写入文件失败: %v", err)
+	}
+
+	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"encoding/xml"
 	"fmt"
 	"os"
+	"strings"
 )
 
 // <fileinfo>
@@ -218,8 +219,10 @@ func WriteMovieNfo(m *Movie, filename string) error {
 	}
 
 	content := append(xmlHeader, data...)
-
-	err = os.WriteFile(filename, content, 0766)
+	strOutput := string(content)
+	strOutput = strings.Replace(strOutput, "&lt;![CDATA[", "<![CDATA[", -1)
+	strOutput = strings.Replace(strOutput, "]]&gt;", "]]>", -1)
+	err = os.WriteFile(filename, []byte(strOutput), 0766)
 	if err != nil {
 		return fmt.Errorf("写入文件失败: %v", err)
 	}

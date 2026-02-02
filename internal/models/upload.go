@@ -46,8 +46,9 @@ func (uq *UQ) Start() {
 		return
 	}
 	uq.running = true
+	// 重新创建tasks通道和results通道
+	uq.tasks = make(chan *DbUploadTask, uq.numWorkers)
 	uq.mutex.Unlock()
-
 	// 启动工作协程
 	for i := 0; i < uq.numWorkers; i++ {
 		go uq.worker()
@@ -179,10 +180,6 @@ func (uq *UQ) Stop() {
 // Restart 重启上传队列
 func (uq *UQ) Restart() {
 	uq.Stop()
-	// 重新创建tasks通道和results通道
-	uq.mutex.Lock()
-	uq.tasks = make(chan *DbUploadTask, uq.numWorkers)
-	uq.mutex.Unlock()
 	uq.Start()
 	helpers.AppLogger.Info("上传队列已重启")
 }

@@ -18,7 +18,17 @@ type LoginRequest struct {
 
 var LoginedUser *models.User = nil
 
-// 登录
+// LoginAction 用户登录
+// @Summary 用户登录
+// @Description 用户登录并返回JWT Token
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Param username body string true "用户名"
+// @Param password body string true "密码"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /api/login [post]
 func LoginAction(c *gin.Context) {
 	user := &models.User{}
 	var req LoginRequest
@@ -65,6 +75,19 @@ func LoginAction(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "登录成功", Data: res})
 }
 
+// ChangePassword 修改密码或用户名
+// @Summary 修改密码
+// @Description 修改当前登录用户的用户名和密码
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Param username body string true "新用户名"
+// @Param new_password body string true "新密码"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /user/change [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func ChangePassword(c *gin.Context) {
 	var req struct {
 		Username    string `json:"username" form:"username"`
@@ -92,6 +115,17 @@ func ChangePassword(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "修改成功", Data: isChange || isChange2})
 }
 
+// GetUserInfo 获取当前用户信息
+// @Summary 获取用户信息
+// @Description 获取当前登录用户的ID和用户名
+// @Tags 用户管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /user/info [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetUserInfo(c *gin.Context) {
 	// 返回当前用户ID和用户名
 	respData := make(map[string]string)

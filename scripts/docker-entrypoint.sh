@@ -16,7 +16,23 @@ fi
 # 启动文件监视
 echo "启动文件更新监视器..."
 /app/scripts/watch_update.sh &
+WATCH_PID=$!
 cd /app
+
+handle_signal() {
+    echo "收到关闭信号，转发给主进程..."
+    if [ -n "$MAIN_PID" ] && kill -0 "$MAIN_PID" >/dev/null 2>&1; then
+        kill -TERM "$MAIN_PID"
+        wait "$MAIN_PID"
+    fi
+    if [ -n "$WATCH_PID" ] && kill -0 "$WATCH_PID" >/dev/null 2>&1; then
+        kill -TERM "$WATCH_PID"
+        wait "$WATCH_PID"
+    fi
+    exit 0
+}
+
+trap 'handle_signal' INT TERM
 
 # 主循环，确保可以多次更新
 while true; do

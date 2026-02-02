@@ -1,6 +1,7 @@
 package fanart
 
 import (
+	"Q115-STRM/internal/helpers"
 	"fmt"
 	"net/http"
 	"time"
@@ -10,7 +11,6 @@ import (
 
 const (
 	FANART_API_URL = "https://webservice.fanart.tv/v3/"
-	FANART_API_KEY = "" // TODO 开源版本留空
 )
 
 // Client represents a fanart.tv API client
@@ -35,7 +35,7 @@ func NewClient() *Client {
 	client.SetHeader("User-Agent", "q115-strm-go/1.0")
 	client.SetBaseURL(FANART_API_URL)
 	return &Client{
-		apiKey:      FANART_API_KEY,
+		apiKey:      helpers.FANART_API_KEY,
 		baseURL:     FANART_API_URL,
 		restyClient: client,
 	}

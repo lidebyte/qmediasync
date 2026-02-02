@@ -53,26 +53,38 @@ type UserDto struct {
 	Policy UserPolicy `json:"Policy"`
 }
 
+type PersonDto struct {
+	ID   string `json:"Id,omitempty"`
+	Name string `json:"Name,omitempty"`
+	Role string `json:"Role,omitempty"`
+	Type string `json:"Type,omitempty"` // e.g., Actor, Director
+}
+
 type BaseItemDtoV2 struct {
 	Name string `json:"Name,omitempty"`
 	// The id.
-	Id                string          `json:"Id,omitempty"`
-	MediaStreams      []MediaStreamV2 `json:"MediaStreams,omitempty"`
-	Type              string          `json:"Type,omitempty"`
-	ParentId          string          `json:"ParentId,omitempty"`
-	SeriesId          string          `json:"SeriesId,omitempty"`
-	SeriesName        string          `json:"SeriesName,omitempty"`
-	SeasonId          string          `json:"SeasonId,omitempty"`
-	SeasonName        string          `json:"SeasonName,omitempty"`
-	Path              string          `json:"Path,omitempty"`
-	IndexNumber       int             `json:"IndexNumber,omitempty"`
-	ParentIndexNumber int             `json:"ParentIndexNumber,omitempty"`
-	ProductionYear    int             `json:"ProductionYear,omitempty"`
-	PremiereDate      string          `json:"PremiereDate,omitempty"`
-	DateCreated       string          `json:"DateCreated,omitempty"`
-	DateModified      string          `json:"DateModified,omitempty"`
-	IsFolder          bool            `json:"IsFolder,omitempty"`
-	MediaSources      []MediaSource   `json:"MediaSources,omitempty"`
+	Id                string            `json:"Id,omitempty"`
+	MediaStreams      []MediaStreamV2   `json:"MediaStreams,omitempty"`
+	Type              string            `json:"Type,omitempty"`
+	ParentId          string            `json:"ParentId,omitempty"`
+	SeriesId          string            `json:"SeriesId,omitempty"`
+	SeriesName        string            `json:"SeriesName,omitempty"`
+	SeasonId          string            `json:"SeasonId,omitempty"`
+	SeasonName        string            `json:"SeasonName,omitempty"`
+	Path              string            `json:"Path,omitempty"`
+	IndexNumber       int               `json:"IndexNumber,omitempty"`
+	ParentIndexNumber int               `json:"ParentIndexNumber,omitempty"`
+	ProductionYear    int               `json:"ProductionYear,omitempty"`
+	PremiereDate      string            `json:"PremiereDate,omitempty"`
+	DateCreated       string            `json:"DateCreated,omitempty"`
+	DateModified      string            `json:"DateModified,omitempty"`
+	IsFolder          bool              `json:"IsFolder,omitempty"`
+	MediaSources      []MediaSource     `json:"MediaSources,omitempty"`
+	CommunityRating   float64           `json:"CommunityRating,omitempty"`
+	Genres            []string          `json:"Genres,omitempty"`
+	People            []PersonDto       `json:"People,omitempty"`
+	Overview          string            `json:"Overview,omitempty"`
+	ImageTags         map[string]string `json:"ImageTags,omitempty"`
 }
 
 type MediaSource struct {
@@ -324,6 +336,38 @@ func (c *Client) RefreshLibrary(libraryId string, libraryName string) error {
 	}
 	helpers.AppLogger.Infof("已触发Emby媒体库 %s => %s 刷新", libraryId, libraryName)
 	return nil
+}
+
+func (c *Client) GetItemDetailByUser(itemId string, userID string) (*BaseItemDtoV2, error) {
+	// Construct the request URL
+	url := fmt.Sprintf("%s/emby/Users/%s/Items/%s?api_key=%s", c.embyURL, userID, itemId, c.apiKey)
+	helpers.AppLogger.Debugf("获取Emby媒体详情 URL: %s", url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json")
+	// helpers.AppLogger.Debugf("GET %s", baseURL.String())
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("错误: 收到非 200 状态码: %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+
+	var response BaseItemDtoV2
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("解析 json 时出错: %w", err)
+	}
+	return &response, nil
 }
 
 // 刷新所有媒体库媒体流数据

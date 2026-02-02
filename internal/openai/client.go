@@ -17,10 +17,11 @@ const (
 	DEFAULT_RETRY_DELAY = 1
 
 	// 超时配置
-	DEFAULT_TIMEOUT      = 60 // 秒
-	DEFAULT_API_KEY      = "" // TODO 开源版本留空
+	DEFAULT_TIMEOUT = 60 // 秒
+
 	DEFAULT_API_BASE_URL = "https://api.siliconflow.cn"
 	DEFAULT_MODEL_NAME   = "Qwen/Qwen2.5-7B-Instruct"
+
 	// 	DEFAULT_MOVIE_PROMPT = `任务规则：
 	// 1. 名称提取：
 	//  - 提取官方完整的主标题，

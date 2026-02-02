@@ -9,12 +9,36 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// StartSync 启动同步
+// @Summary 启动同步任务
+// @Description 启动全局同步任务并添加到队列
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/start [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func StartSync(c *gin.Context) {
 	// 启动同步
 	synccron.StartSyncCron()
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "同步任务已添加到队列", Data: nil})
 }
 
+// GetSyncRecords 获取同步记录列表
+// @Summary 获取同步记录
+// @Description 分页获取同步任务记录列表
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Param page query integer false "页码"
+// @Param page_size query integer false "每页数量"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/records [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetSyncRecords(c *gin.Context) {
 	type syncRecordsRequest struct {
 		Page     int `form:"page" json:"page" binding:"omitempty,min=1"`           // 页码，默认1
@@ -48,7 +72,18 @@ func GetSyncRecords(c *gin.Context) {
 	}})
 }
 
-// 返回同步任务的详情
+// GetSyncTask 获取同步任务详情
+// @Summary 获取同步任务详情
+// @Description 根据ID获取指定同步任务的详细信息
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Param sync_id query integer true "同步任务ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/task [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetSyncTask(c *gin.Context) {
 	type syncTaskRequest struct {
 		SyncID uint `form:"sync_id" json:"sync_id" binding:"required"` // 同步任务ID
@@ -74,6 +109,18 @@ func GetSyncTask(c *gin.Context) {
 }
 
 // GetSyncPathList 获取同步路径列表
+// @Summary 获取同步路径列表
+// @Description 分页获取所有配置的同步路径
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Param page query integer false "页码"
+// @Param page_size query integer false "每页数量"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/path-list [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetSyncPathList(c *gin.Context) {
 	type syncPathListRequest struct {
 		Page     int `form:"page" json:"page" binding:"omitempty,min=1"`           // 页码，默认1
@@ -96,7 +143,8 @@ func GetSyncPathList(c *gin.Context) {
 	syncPaths, total := models.GetSyncPathList(page, pageSize, false)
 
 	for _, sp := range syncPaths {
-		sp.IsRunning = synccron.CheckTaskIsRunning(sp.ID, synccron.SyncTaskTypeStrm)
+		status := synccron.CheckNewTaskStatus(sp.ID, synccron.SyncTaskTypeStrm)
+		sp.IsRunning = int(status)
 	}
 
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取同步路径列表成功", Data: map[string]any{
@@ -119,6 +167,23 @@ type addSyncPathRequest struct {
 }
 
 // AddSyncPath 添加同步路径
+// @Summary 添加同步路径
+// @Description 创建新的同步路径配置
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Param source_type body integer true "来源类型"
+// @Param account_id body integer false "网盘账号ID"
+// @Param base_cid body string true "来源路径ID或本地路径"
+// @Param local_path body string true "本地路径"
+// @Param remote_path body string true "同步源路径"
+// @Param enable_cron body boolean false "是否启用定时任务"
+// @Param custom_config body boolean false "是否自定义配置"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/path-add [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func AddSyncPath(c *gin.Context) {
 	var req addSyncPathRequest
 	if err := c.ShouldBind(&req); err != nil {
@@ -143,12 +208,14 @@ func AddSyncPath(c *gin.Context) {
 	remotePath := req.RemotePath
 	if req.SourceType != models.SourceTypeLocal {
 		remotePath = strings.TrimPrefix(req.RemotePath, "/")
+		remotePath = strings.TrimPrefix(req.RemotePath, "/")
 	}
 	if req.SourceType == models.SourceTypeOpenList {
 		// 将remotepath中的\都替换为/
 		remotePath = strings.ReplaceAll(remotePath, "\\", "/")
 		baseCid = strings.ReplaceAll(req.BaseCid, "\\", "/")
 	}
+	remotePath = strings.Trim(remotePath, "/")
 	// 创建同步路径
 	syncPath := models.CreateSyncPath(req.SourceType, req.AccountId, baseCid, localPath, remotePath, req.EnableCron, req.CustomConfig, req.SyncPathSetting)
 	if syncPath == nil {
@@ -159,6 +226,24 @@ func AddSyncPath(c *gin.Context) {
 }
 
 // UpdateSyncPath 更新同步路径
+// @Summary 更新同步路径
+// @Description 更新已有的同步路径配置
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Param id body integer true "同步路径ID"
+// @Param source_type body integer true "来源类型"
+// @Param account_id body integer false "网盘账号ID"
+// @Param base_cid body string true "来源路径ID或本地路径"
+// @Param local_path body string true "本地路径"
+// @Param remote_path body string true "同步源路径"
+// @Param enable_cron body boolean false "是否启用定时任务"
+// @Param custom_config body boolean false "是否自定义配置"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/path-update [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateSyncPath(c *gin.Context) {
 	type updateSyncPathRequest struct {
 		ID uint `json:"id" form:"id"` // 同步路径ID
@@ -203,6 +288,17 @@ func UpdateSyncPath(c *gin.Context) {
 }
 
 // DeleteSyncPath 删除同步路径
+// @Summary 删除同步路径
+// @Description 根据ID删除指定的同步路径
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Param id body integer true "同步路径ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/path-delete [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func DeleteSyncPath(c *gin.Context) {
 	type deleteSyncPathRequest struct {
 		ID uint `json:"id" binding:"required"` // 同步路径ID
@@ -228,6 +324,17 @@ func DeleteSyncPath(c *gin.Context) {
 }
 
 // GetSyncPathById 根据ID获取同步路径详情
+// @Summary 获取同步路径详情
+// @Description 根据ID获取指定同步路径的详细配置
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Param id body integer true "同步路径ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/path/:id [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetSyncPathById(c *gin.Context) {
 	type syncPathRequest struct {
 		ID uint `form:"id" json:"id" binding:"required"` // 同步路径ID
@@ -253,7 +360,18 @@ func GetSyncPathById(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取同步路径详情成功", Data: syncPath})
 }
 
-// 删除完成或失败的同步记录
+// DelSyncRecords 批量删除同步记录
+// @Summary 删除同步记录
+// @Description 批量删除已完成或失败的同步记录
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Param ids body []integer true "同步记录ID列表"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/delete-records [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func DelSyncRecords(c *gin.Context) {
 	type delSyncRecordsRequest struct {
 		IDs []uint `json:"ids" form:"ids" binding:"required"` // 同步路径ID列表
@@ -278,7 +396,18 @@ func DelSyncRecords(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除同步记录成功", Data: nil})
 }
 
-// 启动某个同步目录的同步任务
+// StartSyncByPath 启动指定路径的同步任务
+// @Summary 启动同步路径
+// @Description 启动指定同步目录的同步任务
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Param id body integer true "同步路径ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/path/start [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func StartSyncByPath(c *gin.Context) {
 	type startSyncRequest struct {
 		ID uint `form:"id" json:"id" binding:"required"` // 同步路径ID
@@ -300,7 +429,7 @@ func StartSyncByPath(c *gin.Context) {
 		return
 	}
 	// syncPath.SetIsFullSync(false)
-	if err := synccron.AddSyncTask(syncPath.ID, synccron.SyncTaskTypeStrm); err != nil {
+	if err := synccron.AddNewSyncTask(syncPath.ID, synccron.SyncTaskTypeStrm); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "添加同步任务失败: " + err.Error(), Data: nil})
 		return
 	}
@@ -308,6 +437,18 @@ func StartSyncByPath(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "同步任务已添加到队列", Data: nil})
 }
 
+// StopSyncByPath 停止指定路径的同步任务
+// @Summary 停止同步路径
+// @Description 停止指定同步目录的同步任务
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Param id body integer true "同步路径ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/path/stop [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func StopSyncByPath(c *gin.Context) {
 	type startSyncRequest struct {
 		ID uint `form:"id" json:"id" binding:"required"` // 同步路径ID
@@ -329,12 +470,23 @@ func StopSyncByPath(c *gin.Context) {
 		return
 	}
 	// syncPath.SetIsFullSync(false)
-	synccron.StopSyncTask(syncPath.ID, synccron.SyncTaskTypeStrm)
+	synccron.CancelNewSyncTask(syncPath.ID, synccron.SyncTaskTypeStrm)
 
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "同步任务已添加到队列", Data: nil})
 }
 
-// 关闭或开启同步目录的定时同步
+// ToggleSyncByPath 切换同步路径的定时任务
+// @Summary 切换定时同步
+// @Description 开启或关闭同步目录的定时同步任务
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Param id body integer true "同步路径ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/path/toggle-cron [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func ToggleSyncByPath(c *gin.Context) {
 	type stopSyncRequest struct {
 		ID uint `form:"id" json:"id" binding:"required"` // 同步路径ID
@@ -363,7 +515,18 @@ func ToggleSyncByPath(c *gin.Context) {
 
 }
 
-// 启动115全量同步，删除本地缓存文件触发全量同步
+// FullStart115Sync 启动115全量同步
+// @Summary 启动115全量同步
+// @Description 删除本地缓存数据并触发115的全量同步
+// @Tags 同步管理
+// @Accept json
+// @Produce json
+// @Param id body integer true "同步路径ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /sync/path/full-start [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func FullStart115Sync(c *gin.Context) {
 	type startSyncRequest struct {
 		ID uint `form:"id" json:"id" binding:"required"` // 同步路径ID
@@ -384,15 +547,15 @@ func FullStart115Sync(c *gin.Context) {
 		return
 	}
 	// 删除所有的数据库记录，重新查询接口
-	if syncPath.SourceType == models.SourceType115 {
-		// 清空数据表
-		if err := models.DeleteAllFileBySyncPathId(syncPath.ID); err != nil {
-			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "清空同步目录的数据表失败: " + err.Error(), Data: nil})
-			return
-		}
-	}
+	// if syncPath.SourceType == models.SourceType115 {
+	// 	// 清空数据表
+	// 	if err := models.DeleteAllFileBySyncPathId(syncPath.ID); err != nil {
+	// 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "清空同步目录的数据表失败: " + err.Error(), Data: nil})
+	// 		return
+	// 	}
+	// }
 	syncPath.SetIsFullSync(true)
-	if err := synccron.AddSyncTask(syncPath.ID, synccron.SyncTaskTypeStrm); err != nil {
+	if err := synccron.AddNewSyncTask(syncPath.ID, synccron.SyncTaskTypeStrm); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "添加同步任务失败: " + err.Error(), Data: nil})
 		return
 	}

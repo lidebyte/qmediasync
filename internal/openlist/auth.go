@@ -2,6 +2,7 @@ package openlist
 
 import (
 	"Q115-STRM/internal/helpers"
+	"fmt"
 	"net/http"
 )
 
@@ -39,4 +40,35 @@ func (c *Client) GetToken() (*TokenData, error) {
 	})
 	c.SetAuthToken(tokenData.Token)
 	return &tokenData, nil
+}
+
+type UserInfoResp struct {
+	ID       uint   `json:"id"`
+	Username string `json:"username"`
+}
+type RespWrapper struct {
+	Code    int          `json:"code"`
+	Message string       `json:"message"`
+	Data    UserInfoResp `json:"data"`
+}
+
+// GetUserInfo 验证提供的 Token 是否有效
+// 通过调用用户信息接口来验证 Token，并返回用户名和用户ID
+func (c *Client) GetUserInfo(token string) (*UserInfoResp, error) {
+
+	var result RespWrapper
+	req := c.client.R().
+		SetHeader("Authorization", token).
+		SetMethod(http.MethodGet).
+		SetResult(&result)
+	_, err := c.doRequest("/api/me", req, MakeRequestConfig(0, 1, 5))
+	if err != nil {
+		helpers.OpenListLog.Errorf("验证 Token 失败: %s", err.Error())
+		return nil, err
+	}
+	if result.Code != http.StatusOK {
+		return nil, fmt.Errorf("Token 验证失败: %s", result.Message)
+	}
+	helpers.OpenListLog.Infof("Token 验证成功，用户: %s (ID: %d)", result.Data.Username, result.Data.ID)
+	return &result.Data, nil
 }

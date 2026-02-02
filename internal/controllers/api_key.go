@@ -35,6 +35,17 @@ type APIKeyListItem struct {
 }
 
 // CreateAPIKey 创建新的API Key
+// @Summary 创建API密钥
+// @Description 为当前登录用户创建新的API密钥，仅此一次返回完整密钥
+// @Tags API管理
+// @Accept json
+// @Produce json
+// @Param name body string true "API密钥名称"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /api-key/create [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func CreateAPIKey(c *gin.Context) {
 	var req CreateAPIKeyRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -72,7 +83,17 @@ func CreateAPIKey(c *gin.Context) {
 	})
 }
 
-// ListAPIKeys 获取当前用户的所有API Keys
+// ListAPIKeys 获取API密钥列表
+// @Summary 获取API密钥列表
+// @Description 获取当前登录用户的所有API密钥（不包含完整密钥）
+// @Tags API管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /api-key/list [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func ListAPIKeys(c *gin.Context) {
 	// 获取当前登录用户
 	if LoginedUser == nil {
@@ -107,7 +128,18 @@ func ListAPIKeys(c *gin.Context) {
 	})
 }
 
-// DeleteAPIKey 删除API Key
+// DeleteAPIKey 删除API密钥
+// @Summary 删除API密钥
+// @Description 删除指定ID的API密钥（仅能删除自己的）
+// @Tags API管理
+// @Accept json
+// @Produce json
+// @Param id path integer true "API密钥ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /api-key/delete/{id} [delete]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func DeleteAPIKey(c *gin.Context) {
 	// 获取当前登录用户
 	if LoginedUser == nil {
@@ -142,7 +174,19 @@ type UpdateAPIKeyStatusRequest struct {
 	IsActive bool `json:"is_active"`
 }
 
-// UpdateAPIKeyStatus 更新API Key的启用/禁用状态
+// UpdateAPIKeyStatus 更新API密钥状态
+// @Summary 启用/禁用API密钥
+// @Description 更新指定API密钥的启用/禁用状态
+// @Tags API管理
+// @Accept json
+// @Produce json
+// @Param id path integer true "API密钥ID"
+// @Param is_active body boolean true "是否启用"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /api-key/status/{id} [put]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateAPIKeyStatus(c *gin.Context) {
 	// 获取当前登录用户
 	if LoginedUser == nil {

@@ -167,7 +167,7 @@ func DownloadFile(targetUrl string, filePath string, userAgent string) (err erro
 	// 发送请求 - 配置客户端支持重定向
 	client := &http.Client{
 		Transport: transport,
-		Timeout:   60 * time.Second,
+		Timeout:   300 * time.Second,
 		// 自定义重定向策略，确保正确传递请求头
 		CheckRedirect: func(req *http.Request, via []*http.Request) error {
 			return http.ErrUseLastResponse
@@ -245,13 +245,8 @@ func DownloadFile(targetUrl string, filePath string, userAgent string) (err erro
 		return fmt.Errorf("写入 %s 失败: %v", filePath, err)
 	}
 	// 检查目标文件是否存在
-	if !PathExists(filePath) {
-		AppLogger.Errorf("[下载] 写入完成，但是文件不存在：%s", filePath)
-		return fmt.Errorf("写入完成，但是文件不存在：%s", filePath)
-	} else {
-		os.Chmod(filepath.Dir(filePath), 0777)
-		os.Chmod(filePath, 0777)
-	}
+	os.Chmod(filepath.Dir(filePath), 0777)
+	os.Chmod(filePath, 0777)
 	AppLogger.Infof("[下载] %s => %s 成功", targetUrl, filePath)
 	return nil
 }

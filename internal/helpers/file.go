@@ -432,3 +432,39 @@ func WriteFileWithPerm(filePath string, content []byte, perm os.FileMode) error 
 	}
 	return nil
 }
+
+// 将srcDir下的所有文件复制到destDir下
+func CopyDir(srcDir, dstDir string) error {
+	// 创建目标目录
+	err := os.MkdirAll(dstDir, 0755)
+	if err != nil {
+		return fmt.Errorf("创建目标目录失败: %v", err)
+	}
+
+	// 遍历源目录
+	return filepath.Walk(srcDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+
+		// 计算相对路径
+		relPath, err := filepath.Rel(srcDir, path)
+		if err != nil {
+			return err
+		}
+
+		destPath := filepath.Join(dstDir, relPath)
+
+		if info.IsDir() {
+			// 创建子目录
+			return os.MkdirAll(destPath, info.Mode())
+		} else {
+			// 复制文件
+			data, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			return os.WriteFile(destPath, data, info.Mode())
+		}
+	})
+}

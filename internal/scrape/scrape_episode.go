@@ -104,7 +104,7 @@ func (t *tvShowScrapeImpl) Scrape(mediaFile *models.ScrapeMediaFile) error {
 }
 
 func (t *tvShowScrapeImpl) Process(mediaFile *models.ScrapeMediaFile) error {
-	mediaFile.ScrapeRootPath = filepath.Join(helpers.RootDir, "config", "tmp", "刮削临时文件", fmt.Sprintf("%d", mediaFile.ScrapePathId), "电视剧")
+	mediaFile.ScrapeRootPath = filepath.Join(helpers.ConfigDir, "tmp", "刮削临时文件", fmt.Sprintf("%d", mediaFile.ScrapePathId), "电视剧")
 	if err := os.MkdirAll(mediaFile.ScrapeRootPath, 0777); err != nil {
 		helpers.AppLogger.Errorf("创建临时目录失败: %v", err)
 		return err
@@ -293,10 +293,9 @@ func (t *tvShowScrapeImpl) GenerateEpisodeNfo(mediaFile *models.ScrapeMediaFile)
 		Season:        mediaFile.MediaSeason.SeasonNumber,
 		Episode:       mediaFile.MediaEpisode.EpisodeNumber,
 		DateAdded:     time.Now().Format("2006-01-02"),
-		// Actor:         sm.Media.Actors,
-		Director: mediaFile.Media.Director,
-		Outline:  mediaFile.MediaEpisode.Overview,
-		Plot:     mediaFile.MediaEpisode.Overview,
+		Director:      mediaFile.Media.Director,
+		Outline:       fmt.Sprintf("<![CDATA[%s]]>", mediaFile.MediaEpisode.Overview),
+		Plot:          fmt.Sprintf("<![CDATA[%s]]>", mediaFile.MediaEpisode.Overview),
 	}
 	if t.scrapePath.ExcludeNoImageActor {
 		episode.Actor = make([]helpers.Actor, 0)

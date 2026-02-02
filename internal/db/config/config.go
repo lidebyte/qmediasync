@@ -30,9 +30,9 @@ type Config struct {
 	}
 }
 
-func Load(baseDir string) *Config {
+func Load() *Config {
 	var cfg Config
-	cfg.DB.BinaryBasePath = filepath.Join(baseDir, "postgres")
+	cfg.DB.BinaryBasePath = helpers.DataDir
 	// 应用模式检测
 	cfg.App.Mode = getEnv("APP_MODE", "binary")
 	if helpers.IsRunningInDocker() {
@@ -48,12 +48,12 @@ func Load(baseDir string) *Config {
 	cfg.DB.SSLMode = getEnv("DB_SSLMODE", "disable")
 	cfg.DB.MaxOpenConns = getEnvInt("DB_MAX_OPEN_CONNS", 25)
 	cfg.DB.MaxIdleConns = getEnvInt("DB_MAX_IDLE_CONNS", 25)
-	cfg.DB.LogDir = filepath.Join(baseDir, "config", "postgres", "log")
-	cfg.DB.DataDir = filepath.Join(baseDir, "config", "postgres", "data")
+	cfg.DB.LogDir = filepath.Join(helpers.ConfigDir, "postgres", "log")
+	cfg.DB.DataDir = filepath.Join(helpers.ConfigDir, "postgres", "data")
 
 	if cfg.DB.Password != "qms123456" || cfg.DB.Host != "localhost" || cfg.DB.User != "qms" {
 		cfg.DB.External = true
-		fmt.Printf("\n检测到外部数据库配置，将连接外部PostgreSQL\n")
+		fmt.Printf("\n检测到外部数据库配置，将连接外部PostgreSQL 数据库连接信息：postgres://%s:%s@%s:%d/%s\n", cfg.DB.User, "******", cfg.DB.Host, cfg.DB.Port, cfg.DB.Name)
 	} else {
 		fmt.Printf("\n使用默认数据库配置，将使用嵌入式PostgreSQL\n")
 	}

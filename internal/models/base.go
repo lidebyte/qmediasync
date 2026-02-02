@@ -23,31 +23,6 @@ func (*BackupConfig) TableName() string {
 	return "backup_config"
 }
 
-// BackupTask 备份任务信息
-type BackupTask struct {
-	BaseModel
-	Status           string  `json:"status"`            // 任务状态：running/completed/cancelled/timeout/failed
-	Progress         int     `json:"progress"`          // 进度百分比（0-100）
-	ElapsedSeconds   int64   `json:"elapsed_seconds"`   // 已耗时间（秒）
-	EstimatedSeconds int64   `json:"estimated_seconds"` // 预计总耗时（秒）
-	CurrentStep      string  `json:"current_step"`      // 当前操作步骤描述
-	TotalTables      int     `json:"total_tables"`      // 总表数
-	ProcessedTables  int     `json:"processed_tables"`  // 已处理表数
-	FilePath         string  `json:"file_path"`         // 备份文件路径
-	FileSize         int64   `json:"file_size"`         // 备份文件大小（字节）
-	DatabaseSize     int64   `json:"database_size"`     // 数据库大小（字节）
-	BackupType       string  `json:"backup_type"`       // 备份类型：manual/auto
-	CreatedReason    string  `json:"created_reason"`    // 创建原因
-	FailureReason    string  `json:"failure_reason"`    // 失败原因
-	StartTime        int64   `json:"start_time"`        // 开始时间戳
-	EndTime          int64   `json:"end_time"`          // 结束时间戳
-	CompressionRatio float64 `json:"compression_ratio"` // 压缩比例
-}
-
-func (*BackupTask) TableName() string {
-	return "backup_task"
-}
-
 // BackupRecord 备份记录（历史记录）
 type BackupRecord struct {
 	BaseModel
@@ -68,23 +43,4 @@ type BackupRecord struct {
 
 func (*BackupRecord) TableName() string {
 	return "backup_record"
-}
-
-// RestoreTask 恢复任务信息
-type RestoreTask struct {
-	BaseModel
-	Status           string `json:"status"`            // 任务状态：running/completed/cancelled/timeout/failed
-	Progress         int    `json:"progress"`          // 进度百分比（0-100）
-	ElapsedSeconds   int64  `json:"elapsed_seconds"`   // 已耗时间（秒）
-	EstimatedSeconds int64  `json:"estimated_seconds"` // 预计总耗时（秒）
-	CurrentStep      string `json:"current_step"`      // 当前操作步骤描述
-	SourceFile       string `json:"source_file"`       // 恢复源文件路径
-	RollbackFile     string `json:"rollback_file"`     // 创建的回滚备份文件路径
-	FailureReason    string `json:"failure_reason"`    // 失败原因
-	StartTime        int64  `json:"start_time"`        // 开始时间戳
-	EndTime          int64  `json:"end_time"`          // 结束时间戳
-}
-
-func (*RestoreTask) TableName() string {
-	return "restore_task"
 }

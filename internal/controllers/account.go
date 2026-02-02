@@ -11,6 +11,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetAccountList 获取所有开放平台账号列表
+// @Summary 获取账号列表
+// @Description 获取所有已配置的开放平台账号（如115、OpenList等）
+// @Tags 账号管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /account/list [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetAccountList(c *gin.Context) {
 	accounts, err := models.GetAllAccount()
 	if err != nil {
@@ -24,9 +35,11 @@ func GetAccountList(c *gin.Context) {
 		AppId             string            `json:"app_id"`
 		AppIdName         string            `json:"app_id_name"`
 		Username          string            `json:"username"`
+		UserId            string            `json:"user_id"`
 		Token             string            `json:"token"`
 		CreatedAt         int64             `json:"created_at"`
 		TokenFailedReason string            `json:"token_failed_reason"`
+		BaseUrl           string            `json:"base_url"`
 	}
 	resp := make([]accountResp, 0, len(accounts))
 	for _, account := range accounts {
@@ -37,9 +50,11 @@ func GetAccountList(c *gin.Context) {
 			AppId:             "",
 			AppIdName:         "",
 			Username:          account.Username,
+			UserId:            string(account.UserId),
 			Token:             account.Token,
 			CreatedAt:         account.CreatedAt,
 			TokenFailedReason: account.TokenFailedReason,
+			BaseUrl:           account.BaseUrl,
 		}
 		switch account.AppId {
 		case "Q115-STRM":
@@ -61,6 +76,21 @@ func GetAccountList(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[[]accountResp]{Code: Success, Message: "查询开放平台账号成功", Data: resp})
 }
 
+// CreateTmpAccount 创建临时开放平台账号
+// @Summary 创建账号
+// @Description 创建新的开放平台账号（支持115、OpenList等）
+// @Tags 账号管理
+// @Accept json
+// @Produce json
+// @Param source_type query string true "账号源类型"
+// @Param name query string true "账号名称"
+// @Param app_id query string false "应用ID（自定义时必需）"
+// @Param app_id_name query string false "应用ID名称（Q115-STRM、MQ的媒体库、自定义）"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /account/create [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func CreateTmpAccount(c *gin.Context) {
 	type tmpAccountReq struct {
 		SourceType models.SourceType `json:"source_type" form:"source_type"`
@@ -107,6 +137,18 @@ func CreateTmpAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[models.Account]{Code: Success, Message: "创建开放平台账号成功", Data: *account})
 }
 
+// DeleteAccount 删除开放平台账号
+// @Summary 删除账号
+// @Description 删除指定ID的开放平台账号
+// @Tags 账号管理
+// @Accept json
+// @Produce json
+// @Param id query integer true "账号ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /account/delete [delete]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func DeleteAccount(c *gin.Context) {
 	type deleteAccountReq struct {
 		ID uint `json:"id" form:"id"`
@@ -129,20 +171,41 @@ func DeleteAccount(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除开放平台账号成功", Data: nil})
 }
 
+// CreateOpenListAccount 创建或更新OpenList账号
+// @Summary 创建/更新OpenList账号
+// @Description 创建新的OpenList账号或更新现有账号的凭证，支持直接使用Token认证
+// @Tags 账号管理
+// @Accept json
+// @Produce json
+// @Param id query integer false "账号ID（指定则为更新操作）"
+// @Param base_url query string true "OpenList服务器地址"
+// @Param username query string true "用户名"
+// @Param password query string true "密码"
+// @Param token query string false "直接提供的访问Token（优先使用）"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /account/openlist [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func CreateOpenListAccount(c *gin.Context) {
 	type createOpenListAccountReq struct {
 		Id       uint   `json:"id" form:"id"`
-		BaseUrl  string `json:"base_url" form:"base_url" binding:"required"`
-		Username string `json:"username" form:"username" binding:"required"`
-		Password string `json:"password" form:"password" binding:"required"`
+		BaseUrl  string `json:"base_url" form:"base_url"`
+		Username string `json:"username" form:"username"`
+		Password string `json:"password" form:"password"`
+		Token    string `json:"token" form:"token"`
 	}
 	req := &createOpenListAccountReq{}
 	if err := c.ShouldBind(req); err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
 		return
 	}
-	if req.BaseUrl == "" || req.Username == "" || req.Password == "" {
+	if req.BaseUrl == "" {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "请求参数错误", Data: nil})
+		return
+	}
+	if req.Token == "" && (req.Password == "" || req.Username == "") {
+		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "必须提供Token或用户名密码", Data: nil})
 		return
 	}
 	// 如果不以http开头则添加http://
@@ -157,7 +220,7 @@ func CreateOpenListAccount(c *gin.Context) {
 			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("查询openlist账号失败: %s", err.Error()), Data: nil})
 			return
 		}
-		if err := account.UpdateOpenList(req.BaseUrl, req.Username, req.Password); err != nil {
+		if err := account.UpdateOpenList(req.BaseUrl, req.Username, req.Password, req.Token); err != nil {
 			c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("更新openlist账号失败: %s", err.Error()), Data: nil})
 			return
 		}
@@ -165,7 +228,7 @@ func CreateOpenListAccount(c *gin.Context) {
 		return
 	}
 	// 创建openlist账号
-	_, err := models.CreateOpenListAccount(req.BaseUrl, req.Username, req.Password)
+	_, err := models.CreateOpenListAccount(req.BaseUrl, req.Username, req.Password, req.Token)
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: fmt.Sprintf("创建openlist账号失败: %s", err.Error()), Data: nil})
 		return

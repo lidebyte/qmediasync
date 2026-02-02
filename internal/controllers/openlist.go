@@ -8,6 +8,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+// GetOpenListFileUrl 获取OpenList文件直链
+// @Summary 获取OpenList文件直链
+// @Description 根据路径查询OpenList文件直链并302重定向
+// @Tags OpenList
+// @Accept json
+// @Produce json
+// @Param account_id query integer true "账号ID"
+// @Param path query string true "文件路径"
+// @Success 302 {string} string "重定向到文件直链"
+// @Failure 200 {object} object
+// @Router /openlist/url [get]
 func GetOpenListFileUrl(c *gin.Context) {
 	type fileUrlReq struct {
 		AccountId uint   `json:"account_id" form:"account_id"`

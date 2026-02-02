@@ -26,9 +26,9 @@ func (*Migrator) TableName() string {
 // 如果没有数据则创建
 // 如果已有数据库则从数据库中获取版本，根据版本执行变更
 func Migrate() {
-	dbFile := filepath.Join(helpers.RootDir, helpers.GlobalConfig.Db.File)
-	sqliteDb := db.GetDb(dbFile)
-	maxVersion := 14
+	dbFile := filepath.Join(helpers.ConfigDir, helpers.GlobalConfig.Db.File)
+	sqliteDb := db.InitSqlite3(dbFile)
+	maxVersion := 21
 	if sqliteDb != nil {
 		// 从sqlite迁移数据到postgres
 		moveSqliteToPostres(sqliteDb, maxVersion)
@@ -260,19 +260,69 @@ func Migrate() {
 		db.Db.AutoMigrate(ApiKey{})
 		migrator.UpdateVersionCode(db.Db)
 	}
+	if migrator.VersionCode == 14 {
+		// 添加EnableAuth字段到EmbyConfig表
+		db.Db.AutoMigrate(EmbyConfig{})
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 15 {
+		// 优化EmbyMediaSyncFile表，添加SyncPathId字段
+		db.Db.AutoMigrate(EmbyMediaSyncFile{})
+		// 给EmbyMediaSyncFile表补充新增的SyncPathId字段
+		fillSyncPathIdInEmbyMediaSyncFile(db.Db)
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 16 {
+		// 清空SyncFile，EmbyMediaSyncFile，DbDownloadTask表数据
+		db.Db.Exec("DELETE FROM sync_files")
+		db.Db.Exec("DELETE FROM emby_media_sync_files")
+		db.Db.Exec("DELETE FORM db_download_tasks")
+		db.Db.AutoMigrate(SyncFile{})
+		// 删除已存在的同步缓存表
+		db.Db.Exec("DROP TABLE IF EXISTS public.sync_files_cache")
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 17 {
+		// 清空SyncFile，EmbyMediaSyncFile，DbDownloadTask表数据
+		db.Db.Exec("DELETE FROM sync_files")
+		db.Db.Exec("DELETE FROM emby_media_sync_files")
+		db.Db.Exec("DELETE FORM db_download_tasks")
+		db.Db.AutoMigrate(SyncFile{})
+		// 删除已存在的同步缓存表
+		db.Db.Exec("DROP TABLE IF EXISTS public.sync_files_cache")
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 18 {
+		// 给User表添加IsAdmin字段
+		db.Db.AutoMigrate(SyncFile{})
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 19 {
+		// 添加115请求统计表
+		db.Db.AutoMigrate(&RequestStat{})
+		migrator.UpdateVersionCode(db.Db)
+	}
+	if migrator.VersionCode == 20 {
+		// 删除不再使用的表
+		db.Db.Migrator().DropTable("sync115_path", "sync_files_cache", "backup_task", "restore_task")
+		migrator.UpdateVersionCode(db.Db)
+	}
 	helpers.AppLogger.Infof("当前数据库版本 %d", migrator.VersionCode)
 }
 
 func BatchCreateTable() {
+	db.Db.Statement.PrepareStmt = true
 	// 数据库版本表
 	db.Db.AutoMigrate(Migrator{})
 	// 配置、用户、同步目录表
 	db.Db.AutoMigrate(Settings{}, Sync{}, User{}, SyncPath{}, Account{})
-	db.Db.AutoMigrate(SyncFile{}, Sync115Path{})
+	db.Db.AutoMigrate(SyncFile{})
 	// 刮削相关表
 	db.Db.AutoMigrate(ScrapeSettings{}, ScrapePath{}, MovieCategory{}, TvShowCategory{}, ScrapePathCategory{}, ScrapeMediaFile{}, Media{}, MediaSeason{}, MediaEpisode{})
+	// 115请求统计表
+	db.Db.AutoMigrate(&RequestStat{})
 	// 备份相关表
-	db.Db.AutoMigrate(BackupConfig{}, BackupTask{}, BackupRecord{}, RestoreTask{})
+	db.Db.AutoMigrate(BackupConfig{}, BackupRecord{})
 	// Emby 同步相关表
 	db.Db.AutoMigrate(EmbyConfig{}, EmbyMediaItem{}, EmbyMediaSyncFile{}, EmbyLibrary{}, EmbyLibrarySyncPath{})
 	// 下载队列
@@ -493,23 +543,9 @@ func moveSqliteToPostres(sqliteDb *gorm.DB, version int) {
 	helpers.AppLogger.Info("已完成数据库迁移，数据已从sqlite迁移至postgres")
 	InitMigrationTable(version)
 	// 删除全部config/libs
-	libsPath := filepath.Join(helpers.RootDir, "config", "libs")
+	libsPath := filepath.Join(helpers.ConfigDir, "libs")
 	os.RemoveAll(libsPath)
 	helpers.AppLogger.Infof("已删除所有config/libs目录下的文件")
-}
-
-func ResetAutoIncrementToNext(db *gorm.DB, tableName string, maxID uint) error {
-	if maxID == 0 {
-		// 查询最大值
-		var max uint
-		db.Table(tableName).Order("id DESC").Limit(1).Select("id").Scan(&max)
-		// db.Debug().Raw("SELECT MAX(id) FROM ?", tableName).Scan(&max)
-		maxID = max
-	}
-	nextID := maxID + 1
-	// ALTER SEQUENCE public.users_id_seq RESTART WITH 2;
-	sql := fmt.Sprintf("ALTER SEQUENCE public.%s_id_seq RESTART WITH %d", tableName, nextID)
-	return db.Exec(sql).Error
 }
 
 func (m *Migrator) UpdateVersionCode(txOrDb *gorm.DB) {
@@ -788,5 +824,28 @@ func migrateExistingNotificationSettings(dbConn *gorm.DB) {
 			}
 			helpers.AppLogger.Infof("已迁移MeoW通知配置到新表")
 		}
+	}
+}
+
+func fillSyncPathIdInEmbyMediaSyncFile(dbConn *gorm.DB) {
+	limit := 100
+	offset := 0
+	for {
+		var embyMediaSyncFiles []EmbyMediaSyncFile
+		dbConn.Model(&EmbyMediaSyncFile{}).Limit(limit).Offset(offset).Find(&embyMediaSyncFiles)
+		if len(embyMediaSyncFiles) == 0 {
+			break
+		}
+		for _, embyMediaSyncFile := range embyMediaSyncFiles {
+			// 用ID查询SyncFiles
+			syncFile := GetSyncFileById(embyMediaSyncFile.SyncFileId)
+			if syncFile == nil {
+				continue
+			}
+			embyMediaSyncFile.SyncPathId = syncFile.SyncPathId
+			dbConn.Save(&embyMediaSyncFile)
+			helpers.AppLogger.Infof("为 EmbyMediaSyncFile %d 填充 SyncPathId %d 成功", embyMediaSyncFile.ID, syncFile.SyncPathId)
+		}
+		offset += limit
 	}
 }

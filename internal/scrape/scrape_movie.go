@@ -106,7 +106,7 @@ mainloop:
 
 func (m *movieScrapeImpl) Process(mediaFile *models.ScrapeMediaFile) error {
 	// 创建临时目录
-	mediaFile.ScrapeRootPath = filepath.Join(helpers.RootDir, "config", "tmp", "刮削临时文件", fmt.Sprintf("%d", mediaFile.ScrapePathId), "电影或其他")
+	mediaFile.ScrapeRootPath = filepath.Join(helpers.ConfigDir, "tmp", "刮削临时文件", fmt.Sprintf("%d", mediaFile.ScrapePathId), "电影或其他")
 	if err := os.MkdirAll(mediaFile.ScrapeRootPath, 0777); err != nil {
 		helpers.AppLogger.Errorf("创建临时目录失败: %v", err)
 		return err
@@ -581,14 +581,13 @@ func (sm *movieScrapeImpl) GenerateMovieNfo(mediaFile *models.ScrapeMediaFile, l
 			Rating: rates,
 		},
 		UserRating: mediaFile.Media.VoteAverage,
-		Outline:    mediaFile.Media.Overview,
-		// Actor:      sm.Media.Actors,
-		Plot:    mediaFile.Media.Overview,
-		Tagline: mediaFile.Media.Tagline,
-		Runtime: mediaFile.Media.Runtime,
-		Id:      mediaFile.Media.ImdbId,
-		TmdbId:  mediaFile.Media.TmdbId,
-		ImdbId:  mediaFile.Media.ImdbId,
+		Outline:    fmt.Sprintf("<![CDATA[%s]]>", mediaFile.Media.Overview),
+		Plot:       fmt.Sprintf("<![CDATA[%s]]>", mediaFile.Media.Overview),
+		Tagline:    mediaFile.Media.Tagline,
+		Runtime:    mediaFile.Media.Runtime,
+		Id:         mediaFile.Media.ImdbId,
+		TmdbId:     mediaFile.Media.TmdbId,
+		ImdbId:     mediaFile.Media.ImdbId,
 		Uniqueid: []helpers.UniqueId{
 			{
 				Id:      mediaFile.Media.ImdbId,

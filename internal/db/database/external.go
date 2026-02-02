@@ -56,7 +56,7 @@ func (m *ExternalManager) Start(ctx context.Context) error {
 }
 
 func (m *ExternalManager) Stop() error {
-	helpers.AppLogger.Info("停止 Docker 环境中的 PostgreSQL...")
+	helpers.AppLogger.Info("停止 Docker或外部 环境中的 PostgreSQL...")
 
 	if m.process != nil {
 		// 使用 pg_ctl 优雅停止，使用qms用户执行

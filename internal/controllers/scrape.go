@@ -5,10 +5,8 @@ import (
 	"Q115-STRM/internal/models"
 	"Q115-STRM/internal/synccron"
 	"encoding/json"
-	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"slices"
@@ -64,6 +62,17 @@ type TvshowCategoryReq struct {
 	GenreIDArray []int    `json:"genre_id_array" form:"genre_id_array"`
 }
 
+// GetTmdbSettings 获取TMDB设置
+// @Summary 获取TMDB设置
+// @Description 获取当前的TMDB API配置
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/tmdb [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetTmdbSettings(c *gin.Context) {
 	tmdbSettings := TmdbSettings{
 		TmdbApiKey:        models.GlobalScrapeSettings.TmdbApiKey,
@@ -77,6 +86,24 @@ func GetTmdbSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[TmdbSettings]{Code: Success, Message: "", Data: tmdbSettings})
 }
 
+// SaveTmdbSettings 保存TMDB设置
+// @Summary 保存TMDB设置
+// @Description 保存或更新TMDB API配置
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param tmdb_api_key body string false "TMDB API Key"
+// @Param tmdb_access_token body string false "TMDB Access Token"
+// @Param tmdb_url body string false "TMDB服务器地址"
+// @Param tmdb_image_url body string false "TMDB图片服务器地址"
+// @Param tmdb_language body string false "TMDB默认语言"
+// @Param tmdb_image_language body string false "TMDB图片语言"
+// @Param tmdb_enable_proxy body boolean false "是否启用代理"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/tmdb [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func SaveTmdbSettings(c *gin.Context) {
 	reqData := TmdbSettings{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
@@ -90,6 +117,21 @@ func SaveTmdbSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "保存TMDB设置成功", Data: nil})
 }
 
+// TestTmdbSettings 测试TMDB设置
+// @Summary 测试TMDB连接
+// @Description 测试指定的TMDB配置是否有效
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param tmdb_api_key body string false "TMDB API Key"
+// @Param tmdb_access_token body string false "TMDB Access Token"
+// @Param tmdb_url body string false "TMDB服务器地址"
+// @Param tmdb_image_url body string false "TMDB图片服务器地址"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/tmdb-test [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func TestTmdbSettings(c *gin.Context) {
 	reqData := TmdbSettings{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
@@ -109,6 +151,22 @@ func TestTmdbSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[bool]{Code: Success, Message: "", Data: testResult})
 }
 
+// SaveAiSettings 保存AI识别设置
+// @Summary 保存AI识别设置
+// @Description 保存或更新AI识别模型的配置
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param enable_ai body string false "是否启用AI识别"
+// @Param ai_api_key body string false "AI API Key"
+// @Param ai_base_url body string false "AI服务器地址"
+// @Param ai_model_name body string false "AI模型名称"
+// @Param ai_timeout body integer false "AI超时时间"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/ai-settings [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func SaveAiSettings(c *gin.Context) {
 	reqData := AiSettings{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
@@ -122,6 +180,20 @@ func SaveAiSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "保存AI识别设置成功", Data: nil})
 }
 
+// TestAiSettings 测试AI识别设置
+// @Summary 测试AI识别连接
+// @Description 测试指定的AI模型配置是否有效
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param ai_api_key body string true "AI API Key"
+// @Param ai_base_url body string true "AI服务器地址"
+// @Param ai_model_name body string true "AI模型名称"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/ai-test [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func TestAiSettings(c *gin.Context) {
 	reqData := AiSettings{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
@@ -145,6 +217,17 @@ func TestAiSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[error]{Code: Success, Message: "测试AI识别成功", Data: nil})
 }
 
+// GetAiSettings 获取AI识别设置
+// @Summary 获取AI识别设置
+// @Description 获取当前的AI识别模型配置
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/ai-settings [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetAiSettings(c *gin.Context) {
 	aiSettings := AiSettings{
 		AiApiKey:    models.GlobalScrapeSettings.AiApiKey,
@@ -155,42 +238,117 @@ func GetAiSettings(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[AiSettings]{Code: Success, Message: "", Data: aiSettings})
 }
 
-// 电影分类
+// GetMovieGenre 获取电影分类
+// @Summary 获取电影分类
+// @Description 获取TMDB电影分类列表
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/movie-genre [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetMovieGenre(c *gin.Context) {
 	movieGenre := helpers.MovieGenres
 	c.JSON(http.StatusOK, APIResponse[[]helpers.Genre]{Code: Success, Message: "", Data: movieGenre})
 }
 
-// 电视剧分类
+// GetTvshowGenre 获取电视剧分类
+// @Summary 获取电视剧分类
+// @Description 获取TMDB电视剧分类列表
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/tvshow-genre [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetTvshowGenre(c *gin.Context) {
 	tvshowGenre := helpers.TvshowGenres
 	c.JSON(http.StatusOK, APIResponse[[]helpers.Genre]{Code: Success, Message: "", Data: tvshowGenre})
 }
 
-// 语言数组
+// GetLanguage 获取语言列表
+// @Summary 获取语言列表
+// @Description 获取所有支持的语言列表
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/language [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetLanguage(c *gin.Context) {
 	language := helpers.Languages
 	c.JSON(http.StatusOK, APIResponse[[]helpers.Language]{Code: Success, Message: "", Data: language})
 }
 
+// GetCountries 获取国家列表
+// @Summary 获取国家列表
+// @Description 获取所有支持的国家列表
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/countries [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetCountries(c *gin.Context) {
 	countries := helpers.Countries
 	c.JSON(http.StatusOK, APIResponse[[]helpers.Country]{Code: Success, Message: "", Data: countries})
 }
 
-// 电影分类列表
+// GetMovieCategories 获取电影分类列表
+// @Summary 获取电影分类列表
+// @Description 获取已配置的电影分类列表
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/movie-categories [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetMovieCategories(c *gin.Context) {
 	movieGenre := models.GetMovieCategory()
 	c.JSON(http.StatusOK, APIResponse[[]*models.MovieCategory]{Code: Success, Message: "", Data: movieGenre})
 }
 
-// 电视剧分类列表
+// GetTvshowCategories 获取电视剧分类列表
+// @Summary 获取电视剧分类列表
+// @Description 获取已配置的电视剧分类列表
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/tvshow-categories [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetTvshowCategories(c *gin.Context) {
 	tvshowGenre := models.GetTvshowCategory()
 	c.JSON(http.StatusOK, APIResponse[[]*models.TvShowCategory]{Code: Success, Message: "", Data: tvshowGenre})
 }
 
-// 保存电影分类
+// SaveMovieCategory 保存电影分类
+// @Summary 保存电影分类
+// @Description 创建或更新电影分类配置
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param id body integer false "分类ID，不填为新增"
+// @Param name body string true "分类名称"
+// @Param language_array body []string true "语言代码数组"
+// @Param genre_id_array body []integer true "分类ID数组"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/movie-categories [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func SaveMovieCategory(c *gin.Context) {
 	reqData := MovieCategoryReq{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
@@ -210,7 +368,21 @@ func SaveMovieCategory(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "保存电影分类成功", Data: nil})
 }
 
-// 保存电视剧分类
+// SaveTvshowCategory 保存电视剧分类
+// @Summary 保存电视剧分类
+// @Description 创建或更新电视剧分类配置
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param id body integer false "分类ID，不填为新增"
+// @Param name body string true "分类名称"
+// @Param country_array body []string true "国家代码数组"
+// @Param genre_id_array body []integer true "分类ID数组"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/tvshow-categories [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func SaveTvshowCategory(c *gin.Context) {
 	reqData := TvshowCategoryReq{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
@@ -230,7 +402,18 @@ func SaveTvshowCategory(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "保存电视剧分类成功", Data: nil})
 }
 
-// 删除电影分类
+// DeleteMovieCategory 删除电影分类
+// @Summary 删除电影分类
+// @Description 删除指定的电影分类
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param id path integer true "分类ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/movie-categories/:id [delete]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func DeleteMovieCategory(c *gin.Context) {
 	id := helpers.StringToInt(c.Param("id"))
 
@@ -241,7 +424,18 @@ func DeleteMovieCategory(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除电影分类成功", Data: nil})
 }
 
-// 删除电视剧分类
+// DeleteTvshowCategory 删除电视剧分类
+// @Summary 删除电视剧分类
+// @Description 删除指定的电视剧分类
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param id path integer true "分类ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/tvshow-categories/:id [delete]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func DeleteTvshowCategory(c *gin.Context) {
 	id := helpers.StringToInt(c.Param("id"))
 	if err := models.DeleteTvshowCategory(uint(id)); err != nil {
@@ -251,17 +445,38 @@ func DeleteTvshowCategory(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除电视剧分类成功", Data: nil})
 }
 
-// 查询同步目录列表
+// GetScrapePathes 获取刮削路径列表
+// @Summary 获取刮削路径列表
+// @Description 获取所有配置的刮削路径列表
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/pathes [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetScrapePathes(c *gin.Context) {
 	scrapePathes := models.GetScrapePathes()
 	for _, scrapePath := range scrapePathes {
 		// 检查是否正在运行
-		scrapePath.IsTaskRunning = synccron.CheckTaskIsRunning(scrapePath.ID, synccron.SyncTaskTypeScrape)
+		scrapePath.IsTaskRunning = synccron.CheckNewTaskStatus(scrapePath.ID, synccron.SyncTaskTypeScrape)
 	}
 	c.JSON(http.StatusOK, APIResponse[[]*models.ScrapePath]{Code: Success, Message: "", Data: scrapePathes})
 }
 
-// 查询同步目录详情
+// GetScrapePath 获取刮削路径详情
+// @Summary 获取刮削路径详情
+// @Description 根据ID获取指定刮削路径的详细配置
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param id path integer true "刮削路径ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/pathes/:id [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetScrapePath(c *gin.Context) {
 	id := helpers.StringToInt(c.Param("id"))
 	scrapePath := models.GetScrapePathByID(uint(id))
@@ -275,7 +490,21 @@ func GetScrapePath(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[*models.ScrapePath]{Code: Success, Message: "", Data: scrapePath})
 }
 
-// 添加或编辑同步目录
+// SaveScrapePath 保存刮削路径
+// @Summary 保存刮削路径
+// @Description 创建或更新刮削路径配置
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param id body integer false "路径ID，不填为新增"
+// @Param source_type body integer true "来源类型"
+// @Param source_path body string true "来源路径"
+// @Param dest_path body string true "目标路径"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/pathes [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func SaveScrapePath(c *gin.Context) {
 	reqData := models.ScrapePath{}
 	if err := c.ShouldBindJSON(&reqData); err != nil {
@@ -314,7 +543,18 @@ func SaveScrapePath(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "保存刮削目录成功", Data: nil})
 }
 
-// 删除同步目录
+// DeleteScrapePath 删除刮削路径
+// @Summary 删除刮削路径
+// @Description 删除指定的刮削路径
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param id path integer true "路径ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/pathes/:id [delete]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func DeleteScrapePath(c *gin.Context) {
 	id := helpers.StringToInt(c.Param("id"))
 	if err := models.DeleteScrapePath(uint(id)); err != nil {
@@ -324,7 +564,18 @@ func DeleteScrapePath(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "删除刮削目录成功", Data: nil})
 }
 
-// 启动识别刮削
+// ScanScrapePath 启动刮削路径扫描
+// @Summary 启动刮削任务
+// @Description 启动指定刮削路径的扫描任务
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param id body integer true "路径ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/pathes/start [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func ScanScrapePath(c *gin.Context) {
 	type ScanScrapePathReq struct {
 		ID uint `json:"id" form:"id"`
@@ -340,7 +591,7 @@ func ScanScrapePath(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "刮削目录不存在", Data: nil})
 		return
 	}
-	if err := synccron.AddSyncTask(scrapePath.ID, synccron.SyncTaskTypeScrape); err != nil {
+	if err := synccron.AddNewSyncTask(scrapePath.ID, synccron.SyncTaskTypeScrape); err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "添加刮削任务失败: " + err.Error(), Data: nil})
 		return
 	}
@@ -348,7 +599,22 @@ func ScanScrapePath(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "刮削任务已添加到队列", Data: nil})
 }
 
-// 刮削记录
+// GetScrapeRecords 获取刮削记录
+// @Summary 获取刮削记录
+// @Description 分页获取刮削任务记录，支持筛选
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param page query integer false "页码"
+// @Param pageSize query integer false "每页数量"
+// @Param type query string false "媒体类型（movie/tvshow）"
+// @Param status query string false "记录状态"
+// @Param name query string false "流屛名称"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/records [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetScrapeRecords(c *gin.Context) {
 	page := helpers.StringToInt(c.Query("page"))
 	if page == 0 {
@@ -504,12 +770,17 @@ func GetScrapeRecords(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[scrapeListResp]{Code: Success, Message: "", Data: resp})
 }
 
-func GetTmpImageUrl(path string, mediaType models.MediaType) string {
-	return fmt.Sprintf("/scrape/tmp-image?path=%s&type=%s", url.QueryEscape(path), url.QueryEscape(string(mediaType)))
-}
-
-// 读取临时静态文件返回给客户端
-// 主要是图片
+// ScrapeTmpImage 获取刮削临时图片
+// @Summary 获取临时图片
+// @Description 返回刮削临时文件中的图片内容
+// @Tags 刮削管理
+// @Accept json
+// @Produce image/jpeg
+// @Param path query string true "图片路径"
+// @Param type query string true "媒体类型"
+// @Success 200 {file} file "图片文件"
+// @Failure 200 {object} object
+// @Router /scrape/tmp-image [get]
 func ScrapeTmpImage(c *gin.Context) {
 	imagePath := c.Query("path")
 	mediaType := models.MediaType(c.Query("type"))
@@ -517,7 +788,7 @@ func ScrapeTmpImage(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "路径不能为空", Data: nil})
 		return
 	}
-	imageRootPath := filepath.Join(helpers.RootDir, "config/tmp/刮削临时文件")
+	imageRootPath := filepath.Join(helpers.ConfigDir, "tmp", "刮削临时文件")
 	if mediaType == models.MediaTypeTvShow {
 		imageRootPath = filepath.Join(imageRootPath, "电视剧")
 	} else {
@@ -541,6 +812,18 @@ func ScrapeTmpImage(c *gin.Context) {
 	c.Data(http.StatusOK, "image/jpeg", fileContent)
 }
 
+// ExportScrapeRecords 导出Scrape记录
+// @Summary 导出刮削记录
+// @Description 将选中的刮削记录导出json文件
+// @Tags 刮削管理
+// @Accept json
+// @Produce application/json
+// @Param ids query string true "记录ID，用逗号分隔"
+// @Success 200 {file} file "json文件"
+// @Failure 200 {object} object
+// @Router /scrape/records/export [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func ExportScrapeRecords(c *gin.Context) {
 	ids := c.Query("ids")
 	if ids == "" {
@@ -593,7 +876,23 @@ func ExportScrapeRecords(c *gin.Context) {
 	c.Data(http.StatusOK, "application/json", exportMediaListJson)
 }
 
-// 重新刮削某个失败的记录，使用用户输入的名称和年份
+// ReScrape 重新刮削记录
+// @Summary 重新刮削
+// @Description 重新刮削指定记录，使用新提供的名称和年份
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param id body integer true "记录ID"
+// @Param name body string true "新名称"
+// @Param year body integer true "新年份"
+// @Param tmdb_id body integer false "TMDBid"
+// @Param season body integer false "季数"
+// @Param episode body integer false "集数"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/re-scrape [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func ReScrape(c *gin.Context) {
 	type reScrapeReq struct {
 		ID      uint   `json:"id"`
@@ -647,9 +946,18 @@ func ClearFailedScrapeRecords(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "操作成功，所有失败的刮削记录已清除", Data: nil})
 }
 
-// 将整理中的记录标记为已整理
-// 检查源文件是否存在
-// 检查目标文件是否存在
+// FinishScrapeMediaFile 完成刮削记录
+// @Summary 标记记录为已整理
+// @Description 完成整理中的记录，不继续整理
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param id body integer true "记录ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/finish [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func FinishScrapeMediaFile(c *gin.Context) {
 	type finishScrapeReq struct {
 		ID uint `json:"id"`
@@ -669,7 +977,18 @@ func FinishScrapeMediaFile(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "操作成功，记录已标记为已整理", Data: nil})
 }
 
-// 删除选定的刮削记录
+// DeleteScrapeMediaFile 删除刮削记录
+// @Summary 删除刮削记录
+// @Description 删除选中的刮削记录
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param ids query string true "记录ID，用逗号分隔"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/records [delete]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func DeleteScrapeMediaFile(c *gin.Context) {
 	ids := c.Query("ids")
 	if ids == "" {
@@ -693,7 +1012,18 @@ func DeleteScrapeMediaFile(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "操作成功，记录已删除", Data: nil})
 }
 
-// 将所选刮削记录标记为待整理
+// RenameFailedScrapeMediaFile 标记记录为待整理
+// @Summary 标记为待整理
+// @Description 将选中的刮削记录标记为待整理
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param ids query string true "记录ID，用逗号分隔"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/rename-failed [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func RenameFailedScrapeMediaFile(c *gin.Context) {
 	ids := c.Query("ids")
 	if ids == "" {
@@ -717,6 +1047,18 @@ func RenameFailedScrapeMediaFile(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "操作成功，所选记录已标记为待整理", Data: nil})
 }
 
+// ToggleScrapePathCron 切换刮削路径的定时任务
+// @Summary 切换定时刮削
+// @Description 开启或关闭刮削路径的定时戮削任务
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param id body integer true "路径ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/pathes/toggle-cron [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func ToggleScrapePathCron(c *gin.Context) {
 	type toggleScrapePathCronReq struct {
 		ID uint `json:"id"`
@@ -741,6 +1083,18 @@ func ToggleScrapePathCron(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "操作成功，定时刮削已切换", Data: nil})
 }
 
+// StopScrape 停止刮削任务
+// @Summary 停止刮削任务
+// @Description 停止指定刮削路径的正运行刮削任务
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Param id body integer true "路径ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/pathes/stop [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func StopScrape(c *gin.Context) {
 	type ScanScrapePathReq struct {
 		ID uint `json:"id" form:"id"`
@@ -750,11 +1104,21 @@ func StopScrape(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "请求参数错误: " + err.Error(), Data: nil})
 		return
 	}
-	synccron.StopSyncTask(req.ID, synccron.SyncTaskTypeScrape)
+	synccron.CancelNewSyncTask(req.ID, synccron.SyncTaskTypeScrape)
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "操作成功，刮削任务已停止", Data: nil})
 }
 
 // TruncateAllScrapeRecords 一键清空所有刮削记录
+// @Summary 清空所有记录
+// @Description 清除数据库中所有的刮削记录
+// @Tags 刮削管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /scrape/truncate-all [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func TruncateAllScrapeRecords(c *gin.Context) {
 	err := models.TruncateAllScrapeRecords()
 	if err != nil {

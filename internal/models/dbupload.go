@@ -34,22 +34,22 @@ type DbUploadTask struct {
 	BaseModel
 	Source               UploadSource     `json:"source" gorm:"index:idx_source"` // 任务来源
 	AccountId            uint             `json:"account_id"`
-	SyncFileId           uint             `json:"sync_file_id"`                           // 同步文件ID
-	ScrapeMediaFileId    uint             `json:"scrape_media_file_id"`                   // 刮削文件ID
-	SourceType           SourceType       `json:"source_type"`                            // 任务来源类型
-	LocalFullPath        string           `json:"local_full_path"`                        // 本地完整文件路径，包含文件名
-	RemoteFileId         string           `json:"remote_file_id" gorm:"index:idx_source"` // 远程文件ID，包含完整路径
-	RemotePathId         string           `json:"remote_path_id"`                         // 父目录CID，如果115就是文件夹ID，如果是openlist就是父文件夹路径
-	FileName             string           `json:"file_name"`                              // 要上传的文件名
-	Status               UploadStatus     `json:"status" gorm:"index"`                    // 任务状态
-	FileSize             int64            `json:"file_size"`                              // 文件大小
-	Error                string           `json:"error"`                                  // 错误信息
-	StartTime            int64            `json:"start_time"`                             // 开始时间
-	EndTime              int64            `json:"end_time"`                               // 结束时间
-	IsSeasonOrTvshowFile bool             `json:"is_season_or_tvshow_file"`               // 是否是剧集或电视剧文件
-	SyncFile             *SyncFile        `json:"-" gorm:"-"`                             // 同步文件
-	ScrapeMediaFile      *ScrapeMediaFile `json:"-" gorm:"-"`                             // 刮削文件
-	Account              *Account         `json:"-" gorm:"-"`                             // 账户
+	SyncFileId           uint             `json:"sync_file_id"`                                     // 同步文件ID
+	ScrapeMediaFileId    uint             `json:"scrape_media_file_id"`                             // 刮削文件ID
+	SourceType           SourceType       `json:"source_type"`                                      // 任务来源类型
+	LocalFullPath        string           `json:"local_full_path" gorm:"index:idx_local_full_path"` // 本地完整文件路径，包含文件名
+	RemoteFileId         string           `json:"remote_file_id" gorm:"index:idx_source"`           // 远程文件ID，包含完整路径
+	RemotePathId         string           `json:"remote_path_id"`                                   // 父目录CID，如果115就是文件夹ID，如果是openlist就是父文件夹路径
+	FileName             string           `json:"file_name"`                                        // 要上传的文件名
+	Status               UploadStatus     `json:"status" gorm:"index"`                              // 任务状态
+	FileSize             int64            `json:"file_size"`                                        // 文件大小
+	Error                string           `json:"error"`                                            // 错误信息
+	StartTime            int64            `json:"start_time"`                                       // 开始时间
+	EndTime              int64            `json:"end_time"`                                         // 结束时间
+	IsSeasonOrTvshowFile bool             `json:"is_season_or_tvshow_file"`                         // 是否是剧集或电视剧文件
+	SyncFile             *SyncFile        `json:"-" gorm:"-"`                                       // 同步文件
+	ScrapeMediaFile      *ScrapeMediaFile `json:"-" gorm:"-"`                                       // 刮削文件
+	Account              *Account         `json:"-" gorm:"-"`                                       // 账户
 }
 
 // String 返回状态的字符串表示
@@ -169,30 +169,25 @@ func (task *DbUploadTask) Upload115File() bool {
 		return false
 	}
 	// 上传文件
-	client := account.Get115Client(false)
+	client := account.Get115Client()
 	if client == nil {
 		task.Fail(fmt.Errorf("账户 %s 115客户端不存在", account.Name))
 		return false
 	}
 	task.Uploading()
-	var file *SyncFile
-	if task.Source == UploadSourceStrm {
-		file = GetSyncFileById(task.SyncFileId)
-		if file == nil {
-			task.Fail(fmt.Errorf("同步文件 %d 不存在", task.SyncFileId))
-			return false
-		}
-	}
+	// var file *SyncFile
+	// if task.Source == UploadSourceStrm {
+	// 	file = GetSyncFileById(task.SyncFileId)
+	// 	if file == nil {
+	// 		task.Fail(fmt.Errorf("同步文件 %d 不存在", task.SyncFileId))
+	// 		return false
+	// 	}
+	// }
 	// 检查远程文件是否存在
 	detail, existsErr := client.GetFsDetailByPath(context.Background(), task.RemoteFileId)
 
 	if existsErr == nil && detail.FileId != "" {
 		if task.Source == UploadSourceStrm {
-			// 远程文件已存在，更新数据
-			file.PickCode = detail.PickCode
-			file.Sha1 = detail.Sha1
-			file.FileId = detail.FileId
-			file.Save()
 			// 标记为已完成
 			task.Complete()
 			return true
@@ -236,30 +231,30 @@ func (task *DbUploadTask) Upload115File() bool {
 	// 标记为已完成
 	task.Complete()
 	helpers.AppLogger.Infof("115上传文件 %s 成功, 新的文件ID: %s", task.LocalFullPath, fileId)
-	if task.Source == UploadSourceStrm {
-		// 查询文件详情，然后更新数据库
-		detail, err = client.GetFsDetailByCid(context.Background(), fileId)
-		if err != nil {
-			task.Fail(fmt.Errorf("115查询文件详情 %s 失败: %s", fileId, err.Error()))
-			return false
-		}
-		if detail.FileId == "" {
-			task.Fail(fmt.Errorf("115查询文件详情 %s 失败: 返回空文件ID", fileId))
-			return false
-		}
-		if file != nil {
-			// 更新数据库
-			file.PickCode = detail.PickCode
-			file.Sha1 = detail.Sha1
-			file.FileId = detail.FileId
-			file.Path = detail.Path
-			if len(detail.Paths) > 0 {
-				file.ParentId = detail.Paths[len(detail.Paths)-1].FileId
-			}
-			file.Save()
-		}
-		return true
-	}
+	// if task.Source == UploadSourceStrm {
+	// 	// 查询文件详情，然后更新数据库
+	// 	detail, err = client.GetFsDetailByCid(context.Background(), fileId)
+	// 	if err != nil {
+	// 		task.Fail(fmt.Errorf("115查询文件详情 %s 失败: %s", fileId, err.Error()))
+	// 		return false
+	// 	}
+	// 	if detail.FileId == "" {
+	// 		task.Fail(fmt.Errorf("115查询文件详情 %s 失败: 返回空文件ID", fileId))
+	// 		return false
+	// 	}
+	// 	if file != nil {
+	// 		// 更新数据库
+	// 		file.PickCode = detail.PickCode
+	// 		file.Sha1 = detail.Sha1
+	// 		file.FileId = detail.FileId
+	// 		file.Path = detail.Path
+	// 		if len(detail.Paths) > 0 {
+	// 			file.ParentId = detail.Paths[len(detail.Paths)-1].FileId
+	// 		}
+	// 		file.Save()
+	// 	}
+	// 	return true
+	// }
 	return true
 }
 
@@ -276,13 +271,13 @@ func (task *DbUploadTask) UploadOpenListFile() bool {
 		task.Fail(fmt.Errorf("账户 %s OpenList客户端不存在", account.Name))
 		return false
 	}
-	if task.Source == UploadSourceStrm {
-		file := GetSyncFileById(task.SyncFileId)
-		if file == nil {
-			task.Fail(fmt.Errorf("同步文件 %d 不存在", task.SyncFileId))
-			return false
-		}
-	}
+	// if task.Source == UploadSourceStrm {
+	// 	file := GetSyncFileById(task.SyncFileId)
+	// 	if file == nil {
+	// 		task.Fail(fmt.Errorf("同步文件 %d 不存在", task.SyncFileId))
+	// 		return false
+	// 	}
+	// }
 	task.Uploading()
 	_, err := client.Upload(task.LocalFullPath, task.RemoteFileId)
 	if err != nil {
@@ -299,6 +294,20 @@ func (task *DbUploadTask) UploadLocalFile() bool {
 		task.Fail(fmt.Errorf("本地文件 %s 复制到 %s 失败: %v", task.LocalFullPath, task.RemoteFileId, err))
 		return false
 	}
+	return true
+}
+
+func CheckCanUploadByLocalPath(source UploadSource, localPath string) bool {
+	var task *DbUploadTask
+	err := db.Db.Model(&DbUploadTask{}).Where("source = ? AND local_full_path = ?", source, localPath).Order("id DESC").First(&task).Error
+	if err != nil || task == nil {
+		return true
+	}
+	if task.Status == UploadStatusUploading || task.Status == UploadStatusPending {
+		// 待上传或者上传中，不能再次添加任务
+		return false
+	}
+	// 其他状态都可以再次上传
 	return true
 }
 
@@ -325,17 +334,17 @@ func AddUploadTaskFromSyncFile(file *SyncFile) error {
 			return errors.New("任务已存在，状态为上传中")
 		}
 	}
-	if file.SyncPath == nil {
-		file.SyncPath = GetSyncPathById(file.SyncPathId)
-	}
+	// if file.SyncPath == nil {
+	// 	file.SyncPath = GetSyncPathById(file.SyncPathId)
+	// }
 	remoteFileId := file.FileId
 	if file.SourceType == SourceType115 {
 		remoteFileId = filepath.Join(file.Path, file.FileName)
 	}
 	// 插入新纪录
 	task := &DbUploadTask{
-		AccountId:     file.SyncPath.AccountId,
-		SourceType:    file.SyncPath.SourceType,
+		AccountId:     file.AccountId,
+		SourceType:    file.SourceType,
 		SyncFileId:    file.ID,
 		RemoteFileId:  remoteFileId,
 		FileName:      file.FileName,
@@ -347,10 +356,10 @@ func AddUploadTaskFromSyncFile(file *SyncFile) error {
 	}
 	err := db.Db.Create(task).Error
 	if err != nil {
-		helpers.AppLogger.Errorf("添加上传任务 %s 失败: %s", file.LocalFilePath, err.Error())
+		helpers.AppLogger.Errorf("添加上传任务 %s => %s 失败: %s", file.LocalFilePath, remoteFileId, err.Error())
 		return err
 	}
-	helpers.AppLogger.Infof("添加上传任务 %s 成功", file.LocalFilePath)
+	helpers.AppLogger.Infof("添加上传任务 %s => %s 成功", file.LocalFilePath, remoteFileId)
 	return nil
 }
 
@@ -461,7 +470,6 @@ func ClearUploadSuccessAndFailed() error {
 }
 
 func UpdateUploadingToPending() error {
-	// 把所有上传中的记录改为待上传
 	err := db.Db.Model(&DbUploadTask{}).
 		Where("status = ?", UploadStatusUploading).
 		Update("status", UploadStatusPending).Error
@@ -470,6 +478,23 @@ func UpdateUploadingToPending() error {
 		return err
 	} else {
 		helpers.AppLogger.Infof("更新上传中的任务为待上传成功")
+	}
+	return err
+}
+
+func RetryFailedUploadTasks() error {
+	udpateData := map[string]interface{}{
+		"status": UploadStatusPending,
+		"error":  "",
+	}
+	err := db.Db.Model(&DbUploadTask{}).
+		Where("status = ?", UploadStatusFailed).
+		Updates(udpateData).Error
+	if err != nil {
+		helpers.AppLogger.Errorf("重试失败的上传任务失败: %v", err)
+		return err
+	} else {
+		helpers.AppLogger.Infof("重试失败的上传任务成功")
 	}
 	return err
 }

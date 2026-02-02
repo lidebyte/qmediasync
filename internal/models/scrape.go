@@ -140,7 +140,7 @@ func (s *ScrapeSettings) GetAiPrompt() string {
 
 func (s *ScrapeSettings) GetAiApiKey() string {
 	if s.EnableAi == AiActionAssist && s.AiApiKey == "" {
-		return openai.DEFAULT_API_KEY
+		return helpers.DEFAULT_SC_API_KEY
 	}
 	return s.AiApiKey
 }

@@ -46,7 +46,7 @@ var (
 func TransferPlaybackInfo(c *gin.Context) {
 	// 1 解析资源信息
 	itemInfo, err := resolveItemInfo(c, RoutePlaybackInfo)
-	logs.Info("ItemInfo 解析结果: %s", itemInfo)
+	// logs.Info("ItemInfo 解析结果: %s", itemInfo)
 	if checkErr(c, err) {
 		return
 	}

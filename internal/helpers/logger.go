@@ -69,7 +69,7 @@ func (q *QLogger) Warn(format string) {
 }
 
 func NewLogger(logFileName string, isConsole bool, rotate bool) *QLogger {
-	logFile := filepath.Join(RootDir, logFileName)
+	logFile := filepath.Join(ConfigDir, logFileName)
 	var lumLogger *lumberjack.Logger
 	// 创建多写入器
 	var writers []io.Writer

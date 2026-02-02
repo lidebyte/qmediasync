@@ -369,7 +369,7 @@ func CreateSyncPath(sourceType SourceType, accountId uint, baseCid, localPath, r
 		"updated_at":     time.Now().Unix(),
 	}
 
-	helpers.AppLogger.Infof("创建同步路径数据: %+v", syncPathData)
+	// helpers.AppLogger.Infof("创建同步路径数据: %+v", syncPathData)
 
 	// 使用Create方法插入数据
 	result := db.Db.Model(&SyncPath{}).Create(syncPathData)
@@ -384,18 +384,6 @@ func CreateSyncPath(sourceType SourceType, accountId uint, baseCid, localPath, r
 		sourceType, baseCid, localPath, remotePath).Order("id DESC").First(syncPath).Error; err != nil {
 		helpers.AppLogger.Errorf("获取创建的同步路径失败: %v", err)
 		return nil
-	}
-	// 本地目录类型不创建remotePath目录
-	if sourceType != SourceTypeLocal {
-		// 创建strm存放目录
-		fullPath := filepath.Join(localPath, remotePath)
-		// 创建目录
-		err := helpers.CreateDirWithPerm(fullPath, 0777)
-		if err != nil {
-			helpers.AppLogger.Errorf("创建strm存放目录失败: %v", err)
-			return nil
-		}
-		// helpers.AppLogger.Debugf("创建strm存放目录: %s", fullPath)
 	}
 	return syncPath
 }
@@ -431,6 +419,11 @@ func DeleteSyncPathById(id uint) bool {
 			}
 		}
 	}
+
+	// 删除SyncPath和Emby Library的关联
+	tx.Exec("DELETE FROM emby_library_sync_paths WHERE sync_path_id = ?", syncPath.ID)
+	// 删除SyncFiles和Emby Media的关联
+	tx.Exec("DELETE FROM emby_media_sync_files WHERE sync_path_id = ?", syncPath.ID)
 	tx.Commit()
 	// 其他类型删除localpath/remotePath
 	fullPath := filepath.Join(syncPath.LocalPath, syncPath.RemotePath)
@@ -438,6 +431,7 @@ func DeleteSyncPathById(id uint) bool {
 		// 本地目录类型直接删除localpath
 		fullPath = syncPath.LocalPath
 	}
+
 	helpers.AppLogger.Infof("暂时不删除目标路径，先观察是否稳定: %s", fullPath)
 	// err := os.RemoveAll(fullPath)
 	// if err != nil {
@@ -498,8 +492,10 @@ func GetSyncPathList(page, pageSize int, enableCron bool) ([]*SyncPath, int64) {
 		}
 		accountCache[syncPath.AccountId] = account
 		syncPath.AccountName = account.Name
+		if account.Name == "" {
+			syncPath.AccountName = account.Username
+		}
 		syncPath.ParseVideoAndMetaExt()
-
 		// helpers.AppLogger.Infof("获取账号成功: %s", account.Name)
 	}
 	// // 清空accountCache

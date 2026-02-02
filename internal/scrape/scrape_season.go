@@ -136,7 +136,7 @@ func (t *tvShowScrapeImpl) MakeSeasonPath(seasonMediaFile *models.ScrapeMediaFil
 
 // 处理季的刮削
 func (t *tvShowScrapeImpl) ProcessSeason(seasonMediaFile *models.ScrapeMediaFile) error {
-	seasonMediaFile.ScrapeRootPath = filepath.Join(helpers.RootDir, "config", "tmp", "刮削临时文件", fmt.Sprintf("%d", seasonMediaFile.ScrapePathId), "电视剧")
+	seasonMediaFile.ScrapeRootPath = filepath.Join(helpers.ConfigDir, "tmp", "刮削临时文件", fmt.Sprintf("%d", seasonMediaFile.ScrapePathId), "电视剧")
 	if err := os.MkdirAll(seasonMediaFile.ScrapeRootPath, 0777); err != nil {
 		helpers.AppLogger.Errorf("创建临时目录失败: %v", err)
 		return err
@@ -220,11 +220,11 @@ func (t *tvShowScrapeImpl) ScrapeSeasonMedia(mediaFile *models.ScrapeMediaFile) 
 
 func (sm *tvShowScrapeImpl) GenerateSeasonNfo(mediaFile *models.ScrapeMediaFile) error {
 	season := &helpers.TVShowSeason{
-		Title:         mediaFile.Media.Name,
-		OriginalTitle: mediaFile.Media.OriginalName,
-		Premiered:     mediaFile.Media.ReleaseDate,
-		Releasedate:   mediaFile.Media.ReleaseDate,
-		Year:          mediaFile.Media.Year,
+		Title:         mediaFile.MediaSeason.SeasonName,
+		OriginalTitle: mediaFile.MediaSeason.SeasonName,
+		Premiered:     mediaFile.MediaSeason.ReleaseDate,
+		Releasedate:   mediaFile.MediaSeason.ReleaseDate,
+		Year:          mediaFile.MediaSeason.Year,
 		SeasonNumber:  mediaFile.MediaSeason.SeasonNumber,
 		DateAdded:     time.Now().Format("2006-01-02"),
 	}

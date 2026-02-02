@@ -8,8 +8,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
-	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -57,121 +55,26 @@ var SyncSubStatusText map[SyncSubStatus]string = map[SyncSubStatus]string{
 // 同步任务
 type Sync struct {
 	BaseModel
-	SyncPathId        uint               `json:"sync_path_id"`
-	Status            SyncStatus         `json:"status"`
-	SubStatus         SyncSubStatus      `json:"sub_status"`  // 子状态，记录当前同步的子任务状态
-	FileOffset        int                `json:"file_offset"` // 文件偏移量，用于继续任务时的定位
-	Total             int                `json:"total"`
-	FinishAt          int64              `json:"finish_at"`
-	NewStrm           int                `json:"new_strm"`
-	NewMeta           int                `json:"new_meta"`
-	NewUpload         int                `json:"new_upload" gorm:"default:0"` // 新增上传的文件数量
-	NetFileStartAt    int64              `json:"net_file_start_at"`           // 开始处理网盘文件时间
-	NetFileFinishAt   int64              `json:"net_file_finish_at"`          // 处理网盘文件完成时间
-	LocalFileStartAt  int64              `json:"local_file_start_at"`         // 开始处理本地文件列表时间
-	LocalFileFinishAt int64              `json:"local_file_finish_at"`        // 处理本地文件列表完成时间
-	LocalPath         string             `json:"local_path"`                  // 本地同步路径
-	RemotePath        string             `json:"remote_path"`                 // 远程同步路径
-	BaseCid           string             `json:"base_cid"`                    // 基础CID，用于标识同步的根目录
-	FailReason        string             `json:"fail_reason"`                 // 失败原因
-	IsFullSync        bool               `json:"is_full_sync"`                // 是否全量同步
-	SyncPath          *SyncPath          `gorm:"-" json:"-"`                  // 同步路径实例
-	Logger            *helpers.QLogger   `gorm:"-" json:"-"`                  // 日志句柄，不参与数据读写
-	ctx               context.Context    `gorm:"-" json:"-"`
-	ctxCancel         context.CancelFunc `gorm:"-" json:"-"`
-	Driver            SyncDriver         `gorm:"-" json:"-"`
-}
-
-func (s *Sync) GetBaseDir() string {
-	if s.SyncPath.SourceType == SourceTypeLocal {
-		return s.LocalPath
-	}
-	return filepath.Join(s.LocalPath, s.RemotePath)
-}
-
-func (s *Sync) Init() {
-	rootDir := s.GetBaseDir()
-	if !helpers.PathExists(rootDir) {
-		err := os.MkdirAll(rootDir, 0777)
-		if err != nil {
-			helpers.AppLogger.Errorf("创建目录 %s 失败: %v", rootDir, err)
-			return
-		}
-	} else {
-		// 检查目录权限是否为0777，如果不是再修改
-		if !s.checkDirectoryPermission(rootDir, 0777) {
-			os.Chmod(rootDir, 0777)
-		}
-	}
-}
-
-// 检查目录权限是否为指定模式
-func (s *Sync) checkDirectoryPermission(dirPath string, expectedMode os.FileMode) bool {
-	info, err := os.Stat(dirPath)
-	if err != nil {
-		helpers.AppLogger.Errorf("检查目录权限失败: %s, %v", dirPath, err)
-		return false
-	}
-
-	// 获取当前权限模式
-	currentMode := info.Mode().Perm()
-
-	// 检查权限是否匹配
-	if currentMode == expectedMode {
-		return true
-	}
-
-	helpers.AppLogger.Debugf("目录权限不匹配: %s, 当前: %o, 期望: %o", dirPath, currentMode, expectedMode)
-	return false
-}
-
-func (s *Sync) SetIsRunning(isRunning bool) {
-	s.ctx, s.ctxCancel = context.WithCancel(context.Background())
-}
-
-// 开始执行同步任务
-// TreeItems 存放全部需要处理的文件和文件夹(24小时更新一次)
-// FileDirsItem 存放文件的父文件夹（只用来保存到文件，不参与逻辑运算）,6小时更新一次(每次同步都会更新，但是6个小时会删除旧文件变成新的)
-func (s *Sync) Start() bool {
-	s.SetIsRunning(true)
-	// 更新最后同步时间为任务开始时间
-	s.SyncPath.UpdateLastSync()
-	s.Init()
-	defer func() {
-		s.ctxCancel()
-		s.ctx = nil
-		s.ctxCancel = nil
-	}()
-	s.InitLogger()
-	// 初始化同步任务日志
-	s.UpdateStatus(SyncStatusInProgress)
-	var account *Account
-	var accountErr error
-	if s.SyncPath.SourceType != SourceTypeLocal {
-		account, accountErr = GetAccountById(s.SyncPath.AccountId)
-		if accountErr != nil {
-			s.Logger.Errorf("获取开放平台账号失败: %v", accountErr)
-			return false
-		}
-	}
-	if s.SyncPath.SourceType == SourceTypeLocal {
-		s.Driver = NewSyncDriverLocal(s)
-	}
-	if s.SyncPath.SourceType == SourceType115 {
-		s.Driver = NewSyncDriver115(s, account.Get115Client(false))
-	}
-	if s.SyncPath.SourceType == SourceTypeOpenList {
-		s.Driver = NewSyncDriverOpenList(s, account.GetOpenListClient())
-	}
-	if s.SyncPath.SourceType == SourceType123 {
-	}
-	s.Driver.Init()
-	if err := s.Driver.DoSync(); err != nil {
-		s.Failed(err.Error())
-		return false
-	}
-	s.Complete()
-	return true
+	SyncPathId        uint             `json:"sync_path_id"`
+	Status            SyncStatus       `json:"status"`
+	SubStatus         SyncSubStatus    `json:"sub_status"`  // 子状态，记录当前同步的子任务状态
+	FileOffset        int              `json:"file_offset"` // 文件偏移量，用于继续任务时的定位
+	Total             int              `json:"total"`
+	FinishAt          int64            `json:"finish_at"`
+	NewStrm           int              `json:"new_strm"`
+	NewMeta           int              `json:"new_meta"`
+	NewUpload         int              `json:"new_upload" gorm:"default:0"` // 新增上传的文件数量
+	NetFileStartAt    int64            `json:"net_file_start_at"`           // 开始处理网盘文件时间
+	NetFileFinishAt   int64            `json:"net_file_finish_at"`          // 处理网盘文件完成时间
+	LocalFileStartAt  int64            `json:"local_file_start_at"`         // 开始处理本地文件列表时间
+	LocalFileFinishAt int64            `json:"local_file_finish_at"`        // 处理本地文件列表完成时间
+	LocalPath         string           `json:"local_path"`                  // 本地同步路径
+	RemotePath        string           `json:"remote_path"`                 // 远程同步路径
+	BaseCid           string           `json:"base_cid"`                    // 基础CID，用于标识同步的根目录
+	FailReason        string           `json:"fail_reason"`                 // 失败原因
+	IsFullSync        bool             `json:"is_full_sync"`                // 是否全量同步
+	SyncPath          *SyncPath        `gorm:"-" json:"-"`                  // 同步路径实例
+	Logger            *helpers.QLogger `gorm:"-" json:"-"`                  // 日志句柄，不参与数据读写
 }
 
 // 完成本地同步任务
@@ -184,7 +87,7 @@ func (s *Sync) Complete() bool {
 		s.Logger.Errorf("完成同步失败: %v", err)
 		return false
 	}
-	s.SyncPath.SetIsFullSync(false) // 改回默认值，下次非全量同步
+	// s.SyncPath.SetIsFullSync(false) // 改回默认值，下次非全量同步
 	s.Logger.Infof("同步任务已完成: %d", s.ID)
 	if s.NewUpload > 0 || s.NewMeta > 0 || s.NewStrm > 0 {
 		ctx := context.Background()
@@ -201,6 +104,8 @@ func (s *Sync) Complete() bool {
 			}
 		}
 	}
+	// 关闭日志
+	s.Logger.Close()
 	return true
 }
 
@@ -209,7 +114,6 @@ func (s *Sync) Failed(reason string) {
 	s.FinishAt = time.Now().Unix()
 	s.LocalFileFinishAt = s.FinishAt
 	s.UpdateStatus(SyncStatusFailed)
-	s.SyncPath.SetIsFullSync(false) // 改回默认值，下次非全量同步
 	ctx := context.Background()
 	notif := &Notification{
 		Type:      SyncError,
@@ -239,7 +143,7 @@ func (s *Sync) UpdateTotal() {
 		s.Logger.Errorf("更新文件总数失败: %v", err)
 		return
 	}
-	s.Logger.Infof("更新文件总数: %d", s.Total)
+	// s.Logger.Infof("更新文件总数: %d", s.Total)
 }
 
 // 修改同步任务的状态
@@ -294,28 +198,11 @@ func (s *Sync) UpdateSubStatus(subStatus SyncSubStatus) bool {
 }
 
 func (s *Sync) InitLogger() {
-	logDir := filepath.Join(helpers.RootDir, "config", "logs", "libs")
+	logDir := filepath.Join(helpers.ConfigDir, "logs", "libs")
 	os.MkdirAll(logDir, 0755)
-	logFileName := filepath.Join("config", "logs", "libs", fmt.Sprintf("sync_%d.log", s.ID))
+	logFileName := filepath.Join("logs", "libs", fmt.Sprintf("sync_%d.log", s.ID))
 	s.Logger = helpers.NewLogger(logFileName, true, false)
 	s.Logger.Infof("创建同步日志文件: %s", logFileName)
-}
-
-func (s *Sync) IsValidVideoExt(name string) bool {
-	return s.SyncPath.IsValidVideoExt(name)
-}
-
-func (s *Sync) IsValidMetaExt(name string) bool {
-	return s.SyncPath.IsValidMetaExt(name)
-}
-
-func (s *Sync) IsExcludeName(name string) bool {
-	exlucdeNameArr := s.SyncPath.GetExcludeNameArr()
-	if len(exlucdeNameArr) == 0 {
-		return false
-	}
-	name = strings.ToLower(name)
-	return slices.Contains(exlucdeNameArr, strings.ToLower(name))
 }
 
 // 获取所有同步记录
@@ -401,11 +288,9 @@ func DeleteSyncRecordById(id uint) error {
 		return err
 	}
 	// 删除同步结果文件
-	logFile := filepath.Join(helpers.RootDir, "config", "logs", "libs", fmt.Sprintf("sync_%d.log", id))
-	resultFile := filepath.Join(helpers.RootDir, "config", "libs", fmt.Sprintf("sync_items_%d.json", id))
+	logFile := filepath.Join(helpers.ConfigDir, "logs", "libs", fmt.Sprintf("sync_%d.log", id))
 	// 删除相关的日志和同步结果文件
 	os.Remove(logFile)
-	os.Remove(resultFile)
 	helpers.AppLogger.Infof("删除同步记录成功: %d", id)
 	return nil
 
@@ -430,4 +315,29 @@ func ClearExpiredSyncRecords(days int) {
 			helpers.AppLogger.Infof("删除过期的同步记录成功: %d", sync.ID)
 		}
 	}
+}
+
+func CreateSync(syncPathId uint, sourcePath, sourcePathId, targetPath string) *Sync {
+	// 新建同步任务
+	sync := &Sync{
+		SyncPathId: syncPathId,
+		Status:     SyncStatusPending,
+		SubStatus:  SyncSubStatusNone,
+		FileOffset: 0,
+		Total:      0,
+		NewStrm:    0,
+		NewMeta:    0,
+		Logger:     nil,
+		LocalPath:  targetPath,
+		RemotePath: sourcePath,
+		BaseCid:    sourcePathId,
+		FailReason: "",
+		IsFullSync: false,
+	}
+	// 写入数据库
+	if err := db.Db.Create(sync).Error; err != nil {
+		helpers.AppLogger.Errorf("创建同步任务失败: %v", err)
+		return nil
+	}
+	return sync
 }

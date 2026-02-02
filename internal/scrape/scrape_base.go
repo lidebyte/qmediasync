@@ -171,7 +171,7 @@ func (s *ScrapeBase) GetDownloadUrl(mediaFile *models.ScrapeMediaFile) string {
 	videoPathOrUrl := mediaFile.VideoPickCode
 	switch mediaFile.SourceType {
 	case models.SourceType115:
-		videoPathOrUrl = s.v115Client.GetDownloadUrl(context.Background(), mediaFile.VideoPickCode, v115open.DEFAULTUA)
+		videoPathOrUrl = s.v115Client.GetDownloadUrl(context.Background(), mediaFile.VideoPickCode, v115open.DEFAULTUA, false)
 	case models.SourceTypeOpenList:
 		videoPathOrUrl = s.openlistClient.GetRawUrl(mediaFile.VideoPickCode)
 	case models.SourceType123:

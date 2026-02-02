@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"Q115-STRM/internal/emby"
 	"Q115-STRM/internal/helpers"
 	"Q115-STRM/internal/models"
 	"Q115-STRM/internal/synccron"
@@ -38,19 +39,44 @@ import (
 // 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取Emby设置成功", Data: emby})
 // }
 
+// ParseEmby 手动解析Emby媒体信息
+// @Summary 解析Emby媒体信息
+// @Description 手动触发Emby媒体信息解析任务
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/emby/parse [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func ParseEmby(c *gin.Context) {
 	if models.GlobalEmbyConfig.EmbyUrl == "" || models.GlobalEmbyConfig.EmbyApiKey == "" {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "Emby Url和Emby API Key没有填写，无法提取媒体信息", Data: nil})
 		return
 	}
-	if synccron.EmbyMediaInfoStart {
+	if emby.EmbyMediaInfoStart {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "Emby媒体信息解析任务已在运行", Data: nil})
 		return
 	}
-	synccron.StartParseEmbyMediaInfo()
+	emby.StartParseEmbyMediaInfo()
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "解析Emby媒体信息成功", Data: nil})
 }
 
+// UpdateTelegram 更新Telegram Bot配置
+// @Summary 更新Telegram配置
+// @Description 启用或配置Telegram通知Bot
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Param enabled body integer true "是否启用，1启用 0禁用"
+// @Param token body string false "Telegram Bot Token"
+// @Param chat_id body string false "Telegram Chat ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/telegram [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateTelegram(c *gin.Context) {
 	type updateTelegramRequest struct {
 		Enabled int    `form:"enabled" json:"enabled"` // 是否启用Telegram通知，"1"表示启用，"0"表示禁用
@@ -81,6 +107,17 @@ func UpdateTelegram(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新Telegram Bot设置成功", Data: nil})
 }
 
+// GetTelegram 获取Telegram Bot配置
+// @Summary 获取Telegram配置
+// @Description 获取当前的Telegram Bot通知配置
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/telegram [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetTelegram(c *gin.Context) {
 	// 获取设置
 	models.LoadSettings() // 确保设置已加载
@@ -95,6 +132,18 @@ func GetTelegram(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取Telegram Bot设置成功", Data: telegramBot})
 }
 
+// UpdateHttpProxy 更新HTTP代理设置
+// @Summary 更新HTTP代理
+// @Description 更新系统使用的HTTP代理配置
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Param http_proxy body string false "HTTP代理地址"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/http-proxy [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateHttpProxy(c *gin.Context) {
 	type updateHttpProxyRequest struct {
 		HttpProxy string `form:"http_proxy" json:"http_proxy"` // HTTP代理地址
@@ -114,6 +163,28 @@ func UpdateHttpProxy(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新HTTP代理设置成功", Data: nil})
 }
 
+// GetHttpProxy 获取HTTP代理设置
+// @Summary 获取HTTP代理
+// @Description 获取当前生效的HTTP代理配置
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/http-proxy [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
+// GetHttpProxy 获取HTTP代理设置
+// @Summary 获取HTTP代理
+// @Description 获取当前系统配置的HTTP代理
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/http-proxy [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetHttpProxy(c *gin.Context) {
 	// 获取设置
 	models.LoadSettings() // 确保设置已加载
@@ -122,6 +193,19 @@ func GetHttpProxy(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取HTTP代理设置成功", Data: httpProxy})
 }
 
+// TestHttpProxy 测试HTTP代理连接
+// @Summary 测试HTTP代理
+// @Description 测试指定HTTP代理的连接有效性
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Param http_proxy body string true "HTTP代理地址"
+// @Param detailed body integer false "是否返回详细测试结果，1返回 0不返回"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/test-http-proxy [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func TestHttpProxy(c *gin.Context) {
 	type testHttpProxyRequest struct {
 		HttpProxy string `form:"http_proxy" json:"http_proxy" binding:"required"` // HTTP代理地址
@@ -171,6 +255,19 @@ func TestHttpProxy(c *gin.Context) {
 	}
 }
 
+// TestTelegram 测试Telegram Bot连接
+// @Summary 测试Telegram连接
+// @Description 测试指定Telegram Bot的连接有效性
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Param token body string true "Telegram Bot Token"
+// @Param chat_id body string true "Telegram Chat ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /telegram/test [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func TestTelegram(c *gin.Context) {
 	type testTelegramRequest struct {
 		Token  string `form:"token" json:"token" binding:"required"`     // Telegram Bot的Token
@@ -205,6 +302,17 @@ func TestTelegram(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "Telegram机器人连接测试成功", Data: nil})
 }
 
+// GetStrmConfig 获取STRM配置
+// @Summary 获取STRM配置
+// @Description 获取STRM同步相关的配置项
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/strm-config [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetStrmConfig(c *gin.Context) {
 	// 获取设置
 	models.LoadSettings() // 确保设置已加载
@@ -238,6 +346,28 @@ func GetStrmConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取STRM配置成功", Data: strmConfig})
 }
 
+// UpdateStrmConfig 更新STRM配置
+// @Summary 更新STRM配置
+// @Description 更新STRM同步相关的配置项（包括URL、Cron、扩展名等）
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Param strm_base_url body string true "STRM基础URL"
+// @Param cron body string true "Cron表达式"
+// @Param meta_ext body []string true "元数据扩展名"
+// @Param video_ext body []string true "视频扩展名"
+// @Param min_video_size body integer false "最小视频大小（MB）"
+// @Param upload_meta body integer false "是否上传元数据，1上传 0不上传"
+// @Param delete_dir body integer false "是否删除空目录，1删除 0不删除"
+// @Param local_proxy body integer false "是否启用本地代理，1启用 0禁用"
+// @Param exclude_name body []string false "排除的文件名"
+// @Param download_meta body integer false "是否下载元数据，1下载 0不下载"
+// @Param add_path body integer false "是否添加路径，1添加 2不添加"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/strm-config [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateStrmConfig(c *gin.Context) {
 	type updateStrmConfigRequest struct {
 		StrmBaseUrl  string   `form:"strm_base_url" json:"strm_base_url" binding:"required"` // STRM基础URL
@@ -302,6 +432,18 @@ func UpdateStrmConfig(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新STRM配置成功", Data: nil})
 }
 
+// GetCronNextTime 获取Cron表达式的下次执行时间
+// @Summary 获取Cron执行时间
+// @Description 计算Cron表达式的下5次执行时间
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Param cron query string true "Cron表达式"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/cron [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetCronNextTime(c *gin.Context) {
 	type getCronNextTimeRequest struct {
 		Cron string `form:"cron" json:"cron" binding:"required"` // Cron表达式
@@ -323,10 +465,34 @@ func GetCronNextTime(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取下次执行时间成功", Data: timeStrs})
 }
 
+// GetThreads 获取线程配置
+// @Summary 获取线程数配置
+// @Description 获取当前下载和文件详情查询的线程数配置
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/threads [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetThreads(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取线程数成功", Data: models.SettingsGlobal.GetThreads()})
 }
 
+// UpdateThreads 更新线程配置
+// @Summary 更新线程数配置
+// @Description 更新下载和文件详情查询的线程数
+// @Tags 系统设置
+// @Accept json
+// @Produce json
+// @Param download_threads body integer true "下载线程数"
+// @Param file_detail_threads body integer true "文件详情查询线程数"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/threads [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateThreads(c *gin.Context) {
 	type updateThreadsRequest struct {
 		DownloadThreads   int `form:"download_threads" json:"download_threads" binding:"required"`       // 下载线程数
@@ -344,6 +510,9 @@ func UpdateThreads(c *gin.Context) {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新线程数失败", Data: nil})
 		return
 	}
+
+	// 动态更新下载队列的并发数
+	models.UpdateGlobalDownloadQueueConcurrency(downloadThreads)
 
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新线程数成功", Data: nil})
 }

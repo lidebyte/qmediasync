@@ -55,14 +55,6 @@ const BACKUP_TMDB_LANGUAGE = "en-US"
 // 默认TMDB 图片语言
 const DEFAULT_TMDB_IMAGE_LANGUAGE = "en-US"
 
-// 默认TMDB Access Token
-const DEFAULT_TMDB_ACCESS_TOKEN = "" // TODO 开源版本留空
-
-// const DEFAULT_TMDB_ACCESS_TOKEN = ""
-
-// 默认TMDB API KEY
-const DEFAULT_TMDB_API_KEY = "" // TODO 开源版本留空
-
 // 默认TMDB API URL
 const DEFAULT_TMDB_API_URL = "https://api.tmdb.org"
 

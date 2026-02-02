@@ -109,7 +109,7 @@ func GetOldLogs(c *gin.Context) {
 	}
 
 	// 拼接完整日志文件路径
-	fullLogPath := filepath.Join(helpers.RootDir, "config", "logs", logPath)
+	fullLogPath := filepath.Join(helpers.ConfigDir, "logs", logPath)
 
 	// 检查文件是否存在
 	if _, serr := os.Stat(fullLogPath); os.IsNotExist(serr) {
@@ -145,7 +145,7 @@ func DownloadLogFile(c *gin.Context) {
 	}
 
 	// 拼接完整日志文件路径
-	fullLogPath := filepath.Join(helpers.RootDir, "config", "logs", logPath)
+	fullLogPath := filepath.Join(helpers.ConfigDir, "logs", logPath)
 
 	// 检查文件是否存在
 	if _, err := os.Stat(fullLogPath); os.IsNotExist(err) {
@@ -191,7 +191,7 @@ func LogWebSocket(c *gin.Context) {
 	}
 
 	// 拼接完整日志文件路径
-	fullLogPath := filepath.Join(helpers.RootDir, "config", "logs", logPath)
+	fullLogPath := filepath.Join(helpers.ConfigDir, "logs", logPath)
 
 	// 检查文件是否存在
 	if _, serr := os.Stat(fullLogPath); os.IsNotExist(serr) {

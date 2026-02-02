@@ -7,9 +7,8 @@ import (
 )
 
 // String 将结构体转换为可读的字符串
-//
-//	@param s
-//	@return string
+// param s
+// return string
 func String(s any) string {
 	if !IsStruct(s) {
 		return fmt.Sprintf("%v", s)
@@ -38,9 +37,8 @@ func String(s any) string {
 }
 
 // IsStruct 判断一个变量是不是结构体
-//
-//	@param v
-//	@return bool
+// param v
+// return bool
 func IsStruct(v any) bool {
 	if v == nil {
 		return false

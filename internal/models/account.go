@@ -7,24 +7,23 @@ import (
 	"Q115-STRM/internal/openlist"
 	"Q115-STRM/internal/v115open"
 	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 )
 
 type Account struct {
 	BaseModel
-	Name              string      `json:"name"` // 账号备注，仅供用户自己识别账号使用，唯一
-	SourceType        SourceType  `json:"source_type"`
-	AppId             string      `json:"app_id"`
-	Token             string      `json:"token" gorm:"type:string;size:512"`
-	RefreshToken      string      `json:"refresh_token" gorm:"type:string;size:512"`
-	TokenExpiriesTime int64       `json:"token_expiries_time"`
-	UserId            json.Number `json:"user_id"`                                         // 账号对应的用户id，唯一
-	Username          string      `json:"username" gorm:"type:string;size:32"`             // 网盘对应的用户名或者openlist的登录用户名
-	Password          string      `json:"password" gorm:"type:string;size:256"`            // openlist的用户密码
-	BaseUrl           string      `json:"base_url" gorm:"type:string;size:1024"`           // openlist的访问地址http[s]://ip:port
-	TokenFailedReason string      `json:"token_failed_reason" gorm:"type:string;size:256"` // 刷新token失败的原因
+	Name              string     `json:"name"` // 账号备注，仅供用户自己识别账号使用，唯一
+	SourceType        SourceType `json:"source_type"`
+	AppId             string     `json:"app_id"`
+	Token             string     `json:"token" gorm:"type:string;size:512"`
+	RefreshToken      string     `json:"refresh_token" gorm:"type:string;size:512"`
+	TokenExpiriesTime int64      `json:"token_expiries_time"`
+	UserId            string     `json:"user_id"`                                         // 账号对应的用户id，唯一
+	Username          string     `json:"username" gorm:"type:string;size:32"`             // 网盘对应的用户名或者openlist的登录用户名
+	Password          string     `json:"password" gorm:"type:string;size:256"`            // openlist的用户密码
+	BaseUrl           string     `json:"base_url" gorm:"type:string;size:1024"`           // openlist的访问地址http[s]://ip:port
+	TokenFailedReason string     `json:"token_failed_reason" gorm:"type:string;size:256"` // 刷新token失败的原因
 }
 
 func (account *Account) TableName() string {
@@ -64,7 +63,7 @@ func (account *Account) UpdateToken(token string, refreshToken string, expiresTi
 }
 
 // 更新开放平台账号对应的用户信息
-func (account *Account) UpdateUser(userId json.Number, username string) bool {
+func (account *Account) UpdateUser(userId string, username string) bool {
 	account.UserId = userId
 	account.Username = username
 	updateData := make(map[string]any)
@@ -80,13 +79,9 @@ func (account *Account) UpdateUser(userId json.Number, username string) bool {
 }
 
 // 如果是normal模式，创建一个新的客户端，不启用限速器
-func (account *Account) Get115Client(normal bool) *v115open.OpenClient {
-	qps := SettingsGlobal.FileDetailThreads
-	if normal {
-		qps = 0
-	}
+func (account *Account) Get115Client() *v115open.OpenClient {
 	appId := account.GetAppId()
-	return v115open.GetClient(qps, account.ID, appId, account.Token, account.RefreshToken)
+	return v115open.GetClient(account.ID, appId, account.Token, account.RefreshToken)
 }
 
 func (account *Account) GetOpenListClient() *openlist.Client {
@@ -122,15 +117,26 @@ func (account *Account) ClearToken(reason string) {
 	}
 }
 
-func (account *Account) UpdateOpenList(baseUrl string, username string, password string) error {
+func (account *Account) UpdateOpenList(baseUrl string, username string, password string, token string) error {
 	oldUsername := account.Username
 	oldPassword := account.Password
 	oldBaseUrl := account.BaseUrl
+	oldToken := account.Token
 	account.BaseUrl = baseUrl
 	account.Username = username
 	account.Password = password
-
-	if oldUsername != account.Username || oldPassword != account.Password {
+	account.Token = token
+	var userInfo *openlist.UserInfoResp
+	// 如果提供了token，优先使用token，否则如果用户名或密码改变则重新获取token
+	if token != "" {
+		client := account.GetOpenListClient()
+		var err error
+		if userInfo, err = client.GetUserInfo(token); err != nil {
+			helpers.AppLogger.Errorf("验证openlist token失败: %v", err)
+			return err
+		}
+		helpers.AppLogger.Infof("使用提供的token更新openlist账号成功")
+	} else if oldUsername != account.Username || oldPassword != account.Password {
 		// 重新获取token
 		client := account.GetOpenListClient()
 		tokenData, err := client.GetToken()
@@ -140,10 +146,17 @@ func (account *Account) UpdateOpenList(baseUrl string, username string, password
 			account.BaseUrl = oldBaseUrl
 			account.Username = oldUsername
 			account.Password = oldPassword
+			account.Token = oldToken
 			return err
 		}
 		account.Token = tokenData.Token
+		if userInfo, err = client.GetUserInfo(token); err != nil {
+			helpers.AppLogger.Errorf("获取openlist用户信息失败: %v", err)
+			return err
+		}
 	}
+	account.UserId = fmt.Sprintf("%d", userInfo.ID)
+	account.Name = userInfo.Username
 	// 保存到数据库
 	err := db.Db.Save(account).Error
 	if err != nil {
@@ -179,7 +192,8 @@ func CreateAccountByName(name string, srouceType SourceType, appId string) (*Acc
 // baseUrl: openlist的访问地址
 // username: openlist的登录用户名
 // password: openlist的登录密码
-func CreateOpenListAccount(baseUrl string, username string, password string) (*Account, error) {
+// token: 直接提供的token（优先使用）
+func CreateOpenListAccount(baseUrl string, username string, password string, token string) (*Account, error) {
 	account := &Account{}
 	account.Name = username
 	account.SourceType = SourceTypeOpenList
@@ -187,16 +201,39 @@ func CreateOpenListAccount(baseUrl string, username string, password string) (*A
 	account.BaseUrl = baseUrl
 	account.Username = username
 	account.Password = password
-	// 验证账号是否正确，获取一次token
-	client := account.GetOpenListClient()
-	tokenData, clientErr := client.GetToken()
-	if clientErr != nil {
-		helpers.AppLogger.Errorf("验证openlist账号失败: %v", clientErr)
-		return nil, clientErr
+	account.Token = token
+
+	var userInfo *openlist.UserInfoResp
+	// 如果提供了token，优先使用token，否则使用用户名密码获取token
+	if token != "" {
+		client := account.GetOpenListClient()
+		var err error
+		if userInfo, err = client.GetUserInfo(token); err != nil {
+			helpers.AppLogger.Errorf("验证openlist token失败: %v", err)
+			return nil, err
+		}
+		helpers.AppLogger.Infof("使用提供的token创建openlist账号成功")
 	} else {
-		helpers.AppLogger.Infof("获取openlist账号token成功")
+		client := account.GetOpenListClient()
+		tokenData, clientErr := client.GetToken()
+		if clientErr != nil {
+			helpers.AppLogger.Errorf("验证openlist账号失败: %v", clientErr)
+			return nil, clientErr
+		} else {
+			helpers.AppLogger.Infof("获取openlist账号token成功")
+		}
+		account.Token = tokenData.Token
+		var err error
+		if userInfo, err = client.GetUserInfo(token); err != nil {
+			helpers.AppLogger.Errorf("获取openlist用户信息失败: %v", err)
+			return nil, err
+		}
 	}
-	account.Token = tokenData.Token
+	account.UserId = fmt.Sprintf("%d", userInfo.ID)
+	account.Name = userInfo.Username
+
+	helpers.AppLogger.Infof("创建openlist账号成功，用户ID：%s，用户名：%s", account.UserId, account.Name)
+
 	// 插入数据库，如果插入失败则报错
 	err := db.Db.Create(account).Error
 	if err != nil {
@@ -212,7 +249,7 @@ func CreateOpenListAccount(baseUrl string, username string, password string) (*A
 // userId: 115账号对应的用户id
 // username: 115账号对应的用户名
 // expiresTime: token的过期时间
-func CreateAccountFull(sourceType SourceType, AppId string, name string, token string, refreshToken string, userId json.Number, username string, expiresTime int64) *Account {
+func CreateAccountFull(sourceType SourceType, AppId string, name string, token string, refreshToken string, userId string, username string, expiresTime int64) *Account {
 	// 先检查userId是否已经存在
 	account, err := GetAccountByUserId(userId)
 	updateOrCreate := "create"
@@ -250,7 +287,7 @@ func CreateAccountFull(sourceType SourceType, AppId string, name string, token s
 }
 
 // 通过userid查询开放平台账号
-func GetAccountByUserId(userId json.Number) (*Account, error) {
+func GetAccountByUserId(userId string) (*Account, error) {
 	account := &Account{}
 	err := db.Db.Where("user_id = ?", userId).First(account).Error
 	if err != nil {
@@ -295,7 +332,7 @@ func GetAllAccount() ([]Account, error) {
 
 // 根据fileId获取文件夹的路径
 func GetPathByPathFileId(account *Account, fileId string) string {
-	client := account.Get115Client(true)
+	client := account.Get115Client()
 	ctx := context.Background()
 	detail, err := client.GetFsDetailByCid(ctx, fileId)
 	if err != nil {

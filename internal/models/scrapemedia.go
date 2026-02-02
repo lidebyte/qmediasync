@@ -534,14 +534,14 @@ func (sm *ScrapeMediaFile) RemoveTvShowTmpFile(sp *ScrapePath, task *DbUploadTas
 	// 检查电视剧目录是否可以删除
 	tvShowPath := sm.GetTmpFullTvshowPath()
 	// 检查电视剧目录是否为空
-	// dirEntries, _ := os.ReadDir(tvShowPath)
-	// if len(dirEntries) == 0 {
-	os.RemoveAll(tvShowPath)
-	helpers.AppLogger.Infof("删除电视剧 %s 的刮削临时目录 %s 成功", sm.Name, tvShowPath)
-	// } else {
-	// 	helpers.AppLogger.Warnf("电视剧 %s 的刮削临时目录 %s 下还有其他文件，不能删除整个目录", sm.Name, tvShowPath)
-	// 	return
-	// }
+	dirEntries, _ := os.ReadDir(tvShowPath)
+	if len(dirEntries) == 0 {
+		os.RemoveAll(tvShowPath)
+		helpers.AppLogger.Infof("删除电视剧 %s 的刮削临时目录 %s 成功", sm.Name, tvShowPath)
+	} else {
+		helpers.AppLogger.Warnf("电视剧 %s 的刮削临时目录 %s 下还有其他文件，不能删除整个目录", sm.Name, tvShowPath)
+		return
+	}
 }
 
 // 状态改为完成
@@ -742,8 +742,11 @@ func (sm *ScrapeMediaFile) ReScrape(name string, year int, tmdbId int64, season 
 			updateData["media_season_id"] = 0
 			updateData["media_episode_id"] = 0
 			updateData["failed_reason"] = ""
+			// 先修改sm
+
 			if sm.PathId == "" {
 				updateData["media_id"] = 0
+				db.Db.Where("id = ?", sm.ID).Updates(updateData)
 				db.Db.Where("id = ?", mediaId).Delete(&Media{})
 				db.Db.Where("media_id = ?", mediaId).Delete(&MediaSeason{})
 				db.Db.Where("media_id = ?", mediaId).Delete(&MediaEpisode{})
@@ -752,6 +755,7 @@ func (sm *ScrapeMediaFile) ReScrape(name string, year int, tmdbId int64, season 
 					return err
 				}
 			} else {
+				db.Db.Where("id = ?", sm.ID).Updates(updateData)
 				db.Db.Where("media_id = ?", mediaId).Delete(&MediaSeason{})
 				db.Db.Where("media_id = ?", mediaId).Delete(&MediaEpisode{})
 				if err := db.Db.Model(&ScrapeMediaFile{}).Where("path_id = ? and batch_no = ?", sm.PathId, sm.BatchNo).Updates(updateData).Error; err != nil {
@@ -1391,9 +1395,9 @@ func GetAllEpisodeByTvshow(mediaId uint, batchNo string) []*ScrapeMediaFile {
 }
 
 // TruncateAllScrapeRecords 清空所有刮削记录
-// 使用TRUNCATE命令清空ScrapeMediaFile、Media、MediaSeason、MediaEpisode四张表
+// 使用DELETE命令清空ScrapeMediaFile、Media、MediaSeason、MediaEpisode四张表
 func TruncateAllScrapeRecords() error {
-	// 按顺序TRUNCATE表，注意外键依赖关系
+	// 按顺序删除表数据，注意外键依赖关系
 	// 先清空子表（MediaEpisode, MediaSeason），再清空父表（Media），最后清空ScrapeMediaFile
 	tables := []string{
 		"media_episodes",
@@ -1403,7 +1407,7 @@ func TruncateAllScrapeRecords() error {
 	}
 
 	for _, tableName := range tables {
-		if err := db.Db.Exec(fmt.Sprintf("TRUNCATE TABLE %s RESTART IDENTITY CASCADE", tableName)).Error; err != nil {
+		if err := db.Db.Exec(fmt.Sprintf("DELETE FROM %s", tableName)).Error; err != nil {
 			helpers.AppLogger.Errorf("清空表 %s 失败: %v", tableName, err)
 			return fmt.Errorf("清空表 %s 失败: %v", tableName, err)
 		}

@@ -22,25 +22,23 @@ type RespBaseBool[T any] struct {
 
 // RequestConfig 请求配置
 type RequestConfig struct {
-	MaxRetries  int           `json:"max_retries"`
-	RetryDelay  time.Duration `json:"retry_delay"`
-	Timeout     time.Duration `json:"timeout"`
-	RateLimited bool          `json:"rate_limited"`
+	MaxRetries      int           `json:"max_retries"`
+	RetryDelay      time.Duration `json:"retry_delay"`
+	Timeout         time.Duration `json:"timeout"`
+	BypassRateLimit bool          `json:"bypass_rate_limit"` // 是否绕过速率限制（播放请求等）
 }
 
 // DefaultRequestConfig 默认请求配置
 func DefaultRequestConfig() *RequestConfig {
 	return &RequestConfig{
-		MaxRetries:  DEFAULT_MAX_RETRIES,
-		RetryDelay:  DEFAULT_RETRY_DELAY * time.Second,
-		Timeout:     DEFAULT_TIMEOUT * time.Second,
-		RateLimited: true,
+		MaxRetries: DEFAULT_MAX_RETRIES,
+		RetryDelay: DEFAULT_RETRY_DELAY * time.Second,
+		Timeout:    DEFAULT_TIMEOUT * time.Second,
 	}
 }
 
-func MakeRequestConfig(rateLimited bool, maxRetries int, retryDelay time.Duration, timeout time.Duration) *RequestConfig {
+func MakeRequestConfig(maxRetries int, retryDelay time.Duration, timeout time.Duration) *RequestConfig {
 	config := DefaultRequestConfig()
-	config.RateLimited = rateLimited
 	if maxRetries > 0 {
 		config.MaxRetries = maxRetries
 	}

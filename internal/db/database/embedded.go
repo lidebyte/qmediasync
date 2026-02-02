@@ -155,13 +155,13 @@ func (m *EmbeddedManager) ensurePostgresBinaries() error {
 }
 
 func (m *EmbeddedManager) prepareDataDir() error {
-	postgresRoot := filepath.Dir(m.config.DataDir)
-	if !helpers.PathExists(m.config.DataDir) {
-		if err := os.MkdirAll(m.config.DataDir, 0755); err != nil {
-			return fmt.Errorf("创建数据目录失败 %s: %v", m.config.DataDir, err)
+	postgresRoot := filepath.Join(helpers.ConfigDir, "postgres")
+	if !helpers.PathExists(postgresRoot) {
+		if err := os.MkdirAll(postgresRoot, 0755); err != nil {
+			return fmt.Errorf("创建数据目录失败 %s: %v", postgresRoot, err)
 		}
 	}
-	logDir := filepath.Join(postgresRoot, "log")
+	logDir := m.config.LogDir
 	tmpPath := filepath.Join(postgresRoot, "tmp")
 	if helpers.PathExists(tmpPath) {
 		os.RemoveAll(tmpPath)

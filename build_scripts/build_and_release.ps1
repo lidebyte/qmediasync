@@ -2,7 +2,7 @@
 
 # Check if version parameter is provided
 param(
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory = $false)]
     [string]$Version
 )
 
@@ -38,7 +38,8 @@ if ($Version) {
     #     exit 1
     # }
     # Write-Host "✓ Tag created and pushed successfully" -ForegroundColor Green
-} else {
+}
+else {
     # Auto-detect existing tag
     $tagOutput = git describe --tags --exact-match 2>$null
     if (-not $tagOutput) {
@@ -57,7 +58,8 @@ if (-not (Test-Path $releaseNotesPath)) {
     Write-Host "Warning: Release notes file $releaseNotesPath not found" -ForegroundColor Yellow
     Write-Host "Using default release notes" -ForegroundColor Yellow
     $RELEASE_BODY = "Release $TAG"
-} else {
+}
+else {
     Write-Host "Found release notes file" -ForegroundColor Green
     # Read file with UTF-8 encoding to avoid encoding issues
     $RELEASE_BODY = Get-Content $releaseNotesPath -Encoding UTF8 -Raw
@@ -96,7 +98,8 @@ foreach ($platform in $PLATFORMS) {
             $EXE_NAME = "QMediaSync.exe"
             # $LDFLAGS = "-s -w -H windowsgui -X main.Version=$TAG"
             $LDFLAGS = "-s -w -X main.Version=$TAG -X 'main.PublishDate=$PUBLISH_DATE'"
-        } else {
+        }
+        else {
             $EXE_NAME = "QMediaSync"
             $LDFLAGS = "-s -w -X main.Version=$TAG -X 'main.PublishDate=$PUBLISH_DATE'"
         }
@@ -141,7 +144,8 @@ foreach ($platform in $PLATFORMS) {
         if ($platform -eq "windows") {
             Write-Host "Creating ${ARCHIVE_NAME}.zip" -ForegroundColor Yellow
             Compress-Archive -Path "temp_build/$ARCHIVE_NAME/*" -DestinationPath "${ARCHIVE_NAME}.zip" -Force
-        } else {
+        }
+        else {
             Write-Host "Creating ${ARCHIVE_NAME}.tar.gz" -ForegroundColor Yellow
             tar -czf "${ARCHIVE_NAME}.tar.gz" -C "temp_build" "$ARCHIVE_NAME"
         }
@@ -193,7 +197,67 @@ try {
     
     Write-Host ""
     Write-Host "✓ GitHub Release created successfully in qicfan/qmediasync!" -ForegroundColor Green
-} catch {
+    
+    # Send Telegram notification after successful release
+    Write-Host "Sending release notes to Telegram..." -ForegroundColor Cyan
+    $TELEGRAM_BOT_TOKEN = "8443342516:AAGC0pwtZfgyTR8dQtNTQ2uTWqCoZKzE0AI"
+    $TELEGRAM_CHAT_ID = "-1003892669499"
+    
+    # Prepare message body for Telegram
+    $telegramMessage = @{
+        chat_id    = $TELEGRAM_CHAT_ID
+        text       = $RELEASE_BODY
+        parse_mode = "Markdown"
+    } | ConvertTo-Json -Depth 10
+    
+    # Send message to Telegram
+    try {
+        $telegramResponse = Invoke-RestMethod -Uri "https://api.telegram.org/bot$TELEGRAM_BOT_TOKEN/sendMessage" `
+            -Method Post `
+            -ContentType "application/json; charset=utf-8" `
+            -Body ([System.Text.Encoding]::UTF8.GetBytes($telegramMessage))
+        
+        if ($telegramResponse.ok) {
+            Write-Host "✓ Release notes sent to Telegram successfully" -ForegroundColor Green
+            
+            # Send MeoW notification after successful Telegram message
+            Write-Host "Sending release notes to MeoW..." -ForegroundColor Cyan
+            $MEOW_API_URL = "https://www.chuckfang.com/MeoW/Broadcast.html"
+            $MEOW_CHANNEL_ID = "cb7fc49997b44242bbb43590128a6eb8"
+            $MEOW_UNION_ID = "MDGpNMFFfEib0jtgpTY63wRktiaOHmvr0N3d7JaZLibEwgMIg"
+            
+            # Prepare message body for MeoW
+            $meowMessage = @{
+                channelId = $MEOW_CHANNEL_ID
+                unionId   = $MEOW_UNION_ID
+                message   = $RELEASE_BODY
+            } | ConvertTo-Json -Depth 10
+            
+            # Send message to MeoW
+            try {
+                $meowResponse = Invoke-RestMethod -Uri $MEOW_API_URL `
+                    -Method Post `
+                    -ContentType "application/json; charset=utf-8" `
+                    -Body ([System.Text.Encoding]::UTF8.GetBytes($meowMessage))
+                
+                Write-Host "✓ Release notes sent to MeoW successfully" -ForegroundColor Green
+            }
+            catch {
+                Write-Host "Warning: Failed to send message to MeoW" -ForegroundColor Yellow
+                Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Yellow
+            }
+        }
+        else {
+            Write-Host "Warning: Failed to send message to Telegram" -ForegroundColor Yellow
+            Write-Host "Response: $($telegramResponse | ConvertTo-Json)" -ForegroundColor Yellow
+        }
+    }
+    catch {
+        Write-Host "Warning: Failed to send message to Telegram" -ForegroundColor Yellow
+        Write-Host "Error: $($_.Exception.Message)" -ForegroundColor Yellow
+    }
+}
+catch {
     Write-Host "Error: Failed to create GitHub Release" -ForegroundColor Red
     Write-Host $_.Exception.Message -ForegroundColor Red
 }
@@ -221,7 +285,8 @@ if ($cleanup -eq "y" -or $cleanup -eq "Y") {
     Write-Host "Cleaning up build files..." -ForegroundColor Yellow
     Remove-Item "QMediaSync_*.zip", "QMediaSync_*.tar.gz" -Force -ErrorAction SilentlyContinue
     Write-Host "✓ Build files cleaned up" -ForegroundColor Green
-} else {
+}
+else {
     Write-Host "Build files preserved" -ForegroundColor Yellow
 }
 Remove-Item Env:GOOS -ErrorAction SilentlyContinue

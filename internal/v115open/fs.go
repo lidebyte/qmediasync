@@ -48,10 +48,10 @@ type FileListResp struct {
 	RespBaseBool[[]File]
 	Count    int              `json:"count"`
 	SysCount int              `json:"sys_count"`
-	Limit    string           `json:"limit"`
-	Offset   int              `json:"offset"`
+	Limit    json.Number      `json:"limit"`
+	Offset   json.Number      `json:"offset"`
 	Path     []FileParentPath `json:"path"`
-	PathStr  string           `json:"-"`
+	PathStr  string           `json:"path_str"` // 完整路径字符串
 }
 
 type FileDetail struct {
@@ -99,8 +99,12 @@ func (d *FileDetail) GetFullPath() string {
 func (c *OpenClient) GetFsList(ctx context.Context, fileId string, showCur bool, onlyDir bool, showDir bool, offset int, limit int) (*FileListResp, error) {
 	data := make(map[string]string)
 	data["cid"] = fileId
-	data["limit"] = helpers.IntToString(limit)
-	data["offset"] = helpers.IntToString(offset)
+	if limit != 0 {
+		data["limit"] = helpers.IntToString(limit)
+	}
+	if offset != 0 {
+		data["offset"] = helpers.IntToString(offset)
+	}
 	// 是否只显示当前目录下的列表
 	if showCur {
 		data["cur"] = "1"
@@ -115,7 +119,7 @@ func (c *OpenClient) GetFsList(ctx context.Context, fileId string, showCur bool,
 	}
 	url := fmt.Sprintf("%s/open/ufile/files", OPEN_BASE_URL)
 	req := c.client.R().SetQueryParams(data).SetMethod("GET")
-	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(true, 3, 1, 15), nil)
+	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(3, 1, 15), nil)
 	if err != nil {
 		helpers.V115Log.Errorf("调用115文件列表接口失败: %v", err)
 		return nil, err
@@ -157,7 +161,7 @@ func (c *OpenClient) GetFsDetailByPath(ctx context.Context, path string) (*FileD
 	url := fmt.Sprintf("%s/open/folder/get_info", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(data).SetMethod("POST")
 	respData := &FileDetail{}
-	_, bodyBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(true, 3, 1, 60), respData)
+	_, bodyBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(3, 1, 60), respData)
 	if err != nil {
 		helpers.V115Log.Errorf("调用文件详情接口失败: %v", err)
 		return nil, err
@@ -185,7 +189,7 @@ func (c *OpenClient) GetFsDetailByCid(ctx context.Context, fileId string) (*File
 	url := fmt.Sprintf("%s/open/folder/get_info", OPEN_BASE_URL)
 	req := c.client.R().SetQueryParams(data).SetMethod("GET")
 	respData := &FileDetail{}
-	_, bodyBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(true, 3, 1, 60), respData)
+	_, bodyBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(3, 1, 60), respData)
 	resp := &RespBaseBool[json.RawMessage]{}
 	bodyErr := json.Unmarshal(bodyBytes, &resp)
 	if bodyErr != nil {
@@ -213,7 +217,7 @@ func (c *OpenClient) ReName(ctx context.Context, fileId string, newName string) 
 	url := fmt.Sprintf("%s/open/open/ufile/update", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(data).SetMethod("POST")
 	respData := RespBaseBool[interface{}]{}
-	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(true, 0, 0, 0), nil)
+	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), nil)
 	if err != nil {
 		helpers.V115Log.Errorf("调用文件更新接口失败: %v", err)
 		return false, err
@@ -237,7 +241,7 @@ func (c *OpenClient) Move(ctx context.Context, fileIds []string, toFileId string
 	url := fmt.Sprintf("%s/open/open/ufile/move", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(data).SetMethod("POST")
 	respData := RespBaseBool[interface{}]{}
-	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(true, 0, 0, 0), nil)
+	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), nil)
 	if err != nil {
 		helpers.V115Log.Errorf("调用文件移动接口失败: %v", err)
 		return false, err
@@ -265,7 +269,7 @@ func (c *OpenClient) Copy(ctx context.Context, fileIds []string, toFileId string
 	url := fmt.Sprintf("%s/open/open/ufile/copy", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(data).SetMethod("POST")
 	respData := RespBaseBool[interface{}]{}
-	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(true, 0, 0, 0), nil)
+	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), nil)
 	if err != nil {
 		helpers.V115Log.Errorf("调用文件复制接口失败: %v", err)
 		return false, err
@@ -290,7 +294,7 @@ func (c *OpenClient) Del(ctx context.Context, fileIds []string, parentFileId str
 	url := fmt.Sprintf("%s/open/open/ufile/delete", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(data).SetMethod("POST")
 	respData := RespBaseBool[interface{}]{}
-	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(true, 0, 0, 0), nil)
+	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), nil)
 	if err != nil {
 		helpers.V115Log.Errorf("调用文件删除接口失败: %v", err)
 		return false, err
@@ -312,7 +316,7 @@ func (c *OpenClient) MkDir(ctx context.Context, parentFileId string, fileName st
 	url := fmt.Sprintf("%s/open/open/folder/add", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(data).SetMethod("POST")
 	respData := &MkDirData{}
-	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(true, 0, 0, 0), respData)
+	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), respData)
 	if err != nil {
 		helpers.V115Log.Errorf("调用新建文件夹接口失败: %v", err)
 		return "", err

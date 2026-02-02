@@ -110,14 +110,16 @@ type UploadResult[T any] struct {
 
 // 获取文件下载地址
 // POST 域名 + /open/ufile/downurl
-func (c *OpenClient) GetDownloadUrl(ctx context.Context, pickCode string, userAgent string) string {
+func (c *OpenClient) GetDownloadUrl(ctx context.Context, pickCode string, userAgent string, bypassRateLimit bool) string {
 	params := map[string]string{
 		"pick_code": pickCode,
 	}
 	url := fmt.Sprintf("%s/open/ufile/downurl", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(params).SetMethod("POST").SetHeader("User-Agent", userAgent)
 	respData := DownloadUrlResp{}
-	_, respBytes, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(true, 0, 0, 0), nil)
+	config := MakeRequestConfig(0, 0, 0)
+	config.BypassRateLimit = bypassRateLimit
+	_, respBytes, err := c.doAuthRequest(ctx, url, req, config, nil)
 	if err != nil {
 		helpers.V115Log.Errorf("获取文件下载地址失败: %v", err)
 		return ""
@@ -145,7 +147,7 @@ func (c *OpenClient) GetVideoPlayUrl(ctx context.Context, pickCode string, userA
 	url := fmt.Sprintf("%s/open/video/play", OPEN_BASE_URL)
 	req := c.client.R().SetQueryParams(params).SetMethod("GET").SetHeader("User-Agent", userAgent)
 	respData := &VideoPlayUrlData{}
-	_, _, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(true, 0, 0, 0), respData)
+	_, _, err := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), respData)
 	if err != nil {
 		helpers.V115Log.Errorf("获取视频播放地址失败: %v", err)
 		return nil
@@ -189,7 +191,7 @@ func (c *OpenClient) Upload(ctx context.Context, filePath string, parentFileId s
 	url := fmt.Sprintf("%s/open/upload/init", OPEN_BASE_URL)
 	req := c.client.R().SetFormData(params).SetMethod("POST")
 	respData := &UploadResult[json.RawMessage]{}
-	_, _, uErr := c.doAuthRequest(ctx, url, req, MakeRequestConfig(true, 1, 1, 15), respData)
+	_, _, uErr := c.doAuthRequest(ctx, url, req, MakeRequestConfig(1, 1, 15), respData)
 	if uErr != nil {
 		helpers.V115Log.Errorf("上传失败: %v", uErr)
 		return "", uErr
@@ -268,7 +270,7 @@ func (c *OpenClient) GetUploadToken(ctx context.Context) *UploadToken {
 	url := fmt.Sprintf("%s/open/upload/get_token", OPEN_BASE_URL)
 	req := c.client.R().SetMethod("GET")
 	respData := &UploadToken{}
-	_, _, uErr := c.doAuthRequest(ctx, url, req, MakeRequestConfig(true, 0, 0, 0), respData)
+	_, _, uErr := c.doAuthRequest(ctx, url, req, MakeRequestConfig(0, 0, 0), respData)
 	if uErr != nil {
 		helpers.V115Log.Errorf("获取上传凭证失败: %v", uErr)
 		return nil

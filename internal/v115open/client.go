@@ -9,17 +9,14 @@ import (
 	"sync"
 	"time"
 
-	"golang.org/x/time/rate"
 	"resty.dev/v3"
 )
 
 // OpenClient HTTP客户端
 type OpenClient struct {
-	AppId     string // 应用ID
-	AccountId uint   // 账号ID
-	client    *resty.Client
-	// 速率限制器
-	rateLimiter     *rate.Limiter
+	AppId           string // 应用ID
+	AccountId       uint   // 账号ID
+	client          *resty.Client
 	AccessToken     string // 访问令牌
 	RefreshTokenStr string // 刷新令牌
 }
@@ -38,33 +35,20 @@ func UpdateToken(accountId uint, token string, refreshToken string) {
 }
 
 // NewHttpClient 创建新的HTTP客户端
-func GetClient(qps int, accountId uint, appId string, token string, refreshToken string) *OpenClient {
+func GetClient(accountId uint, appId string, token string, refreshToken string) *OpenClient {
 	cachedClientsMutex.RLock()
 	defer cachedClientsMutex.RUnlock()
-	clientKey := fmt.Sprintf("%d_%d", accountId, qps)
+	clientKey := fmt.Sprintf("%d", accountId)
 	if client, exists := cachedClients[clientKey]; exists {
 		client.SetAuthToken(token, refreshToken)
 		return client
 	}
 
 	client := resty.New()
-	var openClient *OpenClient
-	if qps == 0 {
-		helpers.AppLogger.Infof("创建新的115客户端，普通调用无限速")
-		openClient = &OpenClient{
-			client:      client,
-			AppId:       appId,
-			AccountId:   accountId,
-			rateLimiter: nil, // 每秒qps个请求
-		}
-	} else {
-		helpers.AppLogger.Infof("创建新的115客户端，strm同步或刮削，qps=%d", qps)
-		openClient = &OpenClient{
-			client:      client,
-			AppId:       appId,
-			AccountId:   accountId,
-			rateLimiter: rate.NewLimiter(rate.Every(time.Second), qps), // 每秒qps个请求
-		}
+	openClient := &OpenClient{
+		client:    client,
+		AppId:     appId,
+		AccountId: accountId,
 	}
 	openClient.SetAuthToken(token, refreshToken)
 	cachedClients[clientKey] = openClient
@@ -102,13 +86,13 @@ func (c *OpenClient) request(url string, req *resty.Request) (*resty.Response, *
 		return response, nil, fmt.Errorf("token invalid")
 	case REQUEST_MAX_LIMIT_CODE:
 		// 访问频率过高
-		return response, nil, fmt.Errorf("rate limit exceeded")
+		return response, nil, fmt.Errorf("访问频率过高")
 	}
 
 	return response, resp, nil
 }
 
-// doRequest 带重试的请求方法
+// doRequest 带重试的请求方法（使用全局队列）
 func (c *OpenClient) doRequest(url string, req *resty.Request, options *RequestConfig) (*resty.Response, *RespBase[json.RawMessage], error) {
 	// 设置超时时间
 	req.SetTimeout(options.Timeout)
@@ -116,28 +100,85 @@ func (c *OpenClient) doRequest(url string, req *resty.Request, options *RequestC
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", DEFAULTUA)
 	}
+
 	var lastErr error
 	for attempt := 0; attempt <= options.MaxRetries; attempt++ {
-		resp, respData, err := c.request(url, req)
-		if err == nil {
-			// 正常返回
-			return resp, respData, nil
-		}
-		lastErr = err
+		// 使用全局队列执行器处理请求
+		executor := GetGlobalExecutor()
+		respChan := make(chan *RequestResponse, 1)
 
-		if err.Error() == "token invalid" {
-			return nil, nil, err
+		queuedReq := &QueuedRequest{
+			URL:             url,
+			Method:          req.Method,
+			Request:         req,
+			BypassRateLimit: options.BypassRateLimit,
+			ResponseChan:    respChan,
+			CreatedAt:       time.Now(),
+			Ctx:             context.Background(),
 		}
-		// 如果是速率限制错误，等待暂停结束后重试
-		if err.Error() == "rate limit exceeded" {
-			helpers.V115Log.Warn("访问频率过高，正在暂停")
-			continue
+
+		// 将请求加入队列
+		executor.EnqueueRequest(queuedReq)
+
+		// 等待响应
+		queueResp := <-respChan
+
+		if queueResp.Error == nil && queueResp.RespData != nil {
+			// 请求成功，转换为RespBase格式
+			respBase := &RespBase[json.RawMessage]{
+				State:   0,
+				Code:    queueResp.RespData.Code,
+				Message: queueResp.RespData.Message,
+				Data:    queueResp.RespData.Data,
+			}
+			if queueResp.RespData.State {
+				respBase.State = 1
+			}
+			return queueResp.Response, respBase, nil
+		}
+
+		lastErr = queueResp.Error
+
+		// Token相关错误不重试
+		if queueResp.RespData != nil {
+			switch queueResp.RespData.Code {
+			case REFRESH_TOKEN_INVALID:
+				// 转换为RespBase格式返回
+				respBase := &RespBase[json.RawMessage]{
+					State:   0,
+					Code:    queueResp.RespData.Code,
+					Message: queueResp.RespData.Message,
+					Data:    queueResp.RespData.Data,
+				}
+				if queueResp.RespData.State {
+					respBase.State = 1
+				}
+				return queueResp.Response, respBase, lastErr
+			}
+		}
+
+		// 如果是限流错误，不重试
+		if queueResp.IsThrottled {
+			helpers.V115Log.Warn("检测到限流，停止重试")
+			if queueResp.RespData != nil {
+				respBase := &RespBase[json.RawMessage]{
+					State:   0,
+					Code:    queueResp.RespData.Code,
+					Message: queueResp.RespData.Message,
+					Data:    queueResp.RespData.Data,
+				}
+				if queueResp.RespData.State {
+					respBase.State = 1
+				}
+				return queueResp.Response, respBase, lastErr
+			}
+			return queueResp.Response, nil, lastErr
 		}
 
 		// 其他错误开始重试
-		if attempt < options.MaxRetries {
-			helpers.V115Log.Warnf("%s %s 请求失败:%+v", req.Method, req.URL, lastErr)
-			helpers.V115Log.Warnf("%s %s 请求失败，%+v秒后重试 (第%d次尝试)", req.Method, req.URL, options.RetryDelay.Seconds(), attempt+1)
+		if attempt < options.MaxRetries && lastErr != nil {
+			helpers.V115Log.Warnf("%s %s 请求失败:%+v", req.Method, url, lastErr)
+			helpers.V115Log.Warnf("%s %s 请求失败，%+v秒后重试 (第%d次尝试)", req.Method, url, options.RetryDelay.Seconds(), attempt+1)
 			time.Sleep(options.RetryDelay)
 		}
 	}
@@ -146,11 +187,7 @@ func (c *OpenClient) doRequest(url string, req *resty.Request, options *RequestC
 
 // request 执行HTTP请求的核心方法
 func (c *OpenClient) authRequest(ctx context.Context, url string, req *resty.Request, respData any, options *RequestConfig) (*resty.Response, []byte, error) {
-	if options.RateLimited && c.rateLimiter != nil {
-		if err := c.rateLimiter.Wait(ctx); err != nil {
-			return nil, nil, fmt.Errorf("rate limit wait error: %w", err)
-		}
-	}
+	helpers.V115Log.Debugf("执行认证请求: %s %s", req.Method, url)
 	req.SetForceResponseContentType("application/json")
 	var response *resty.Response
 	var err error
@@ -165,6 +202,7 @@ func (c *OpenClient) authRequest(ctx context.Context, url string, req *resty.Req
 	default:
 		return nil, nil, fmt.Errorf("unsupported HTTP method: %s", method)
 	}
+	helpers.V115Log.Debugf("完成认证请求: %s %s", req.Method, url)
 	if err != nil {
 		return response, nil, err
 	}
@@ -196,14 +234,7 @@ func (c *OpenClient) authRequest(ctx context.Context, url string, req *resty.Req
 		helpers.V115Log.Error("访问凭证无效，请重新登录")
 		return response, nil, fmt.Errorf("token expired")
 	case REQUEST_MAX_LIMIT_CODE:
-		// 访问频率过高，暂停30秒
-		// if !c.isPaused() {
-		// 	c.setPause()
-		// 	time.Sleep(30 * time.Second)
-		// 	// 暂停结束后，重置暂停状态
-		// 	c.resetPause()
-		// }
-		return response, nil, fmt.Errorf("rate limit exceeded")
+		return response, nil, fmt.Errorf("访问频率过高")
 	}
 	if respData != nil && resp.State {
 		// 解包
@@ -219,7 +250,7 @@ func (c *OpenClient) authRequest(ctx context.Context, url string, req *resty.Req
 	return response, resBytes, nil
 }
 
-// doAuthRequest 带重试的认证请求方法
+// doAuthRequest 带重试的认证请求方法（使用全局队列）
 func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.Request, options *RequestConfig, respData any) (*resty.Response, []byte, error) {
 	if c.AccessToken == "" {
 		// 没有token，直接报错
@@ -230,37 +261,66 @@ func (c *OpenClient) doAuthRequest(ctx context.Context, url string, req *resty.R
 	if req.Header.Get("User-Agent") == "" {
 		req.Header.Set("User-Agent", DEFAULTUA)
 	}
+	req.SetAuthToken(c.AccessToken).SetDoNotParseResponse(true)
+
 	var lastErr error
 	for attempt := 0; attempt <= options.MaxRetries; attempt++ {
-		resp, respBytes, err := c.authRequest(ctx, url, req, respData, options)
-		if err == nil {
-			return resp, respBytes, nil
+		// 使用全局队列执行器处理请求
+		executor := GetGlobalExecutor()
+		respChan := make(chan *RequestResponse, 1)
+
+		queuedReq := &QueuedRequest{
+			URL:             url,
+			Method:          req.Method,
+			Request:         req,
+			BypassRateLimit: options.BypassRateLimit,
+			ResponseChan:    respChan,
+			CreatedAt:       time.Now(),
+			Ctx:             ctx,
 		}
 
-		lastErr = err
-		// 如果是token过期错误，等待token刷新完成后重试
-		if err.Error() == "token expired" {
-			helpers.V115Log.Errorf("访问凭证过期，等待自动刷新后下次重试")
-			lastErr = fmt.Errorf("访问凭证（Token）过期")
+		// 将请求加入队列
+		executor.EnqueueRequest(queuedReq)
+
+		// 等待响应
+		queueResp := <-respChan
+
+		if queueResp.Error == nil && queueResp.RespData != nil {
+			// 请求成功
+			if respData != nil && queueResp.RespData.State {
+				// 解包响应数据
+				if unmarshalErr := json.Unmarshal(queueResp.RespData.Data, respData); unmarshalErr != nil {
+					helpers.V115Log.Errorf("解包响应数据失败: %s", unmarshalErr.Error())
+					return queueResp.Response, queueResp.RespBytes, nil
+				}
+			}
+			return queueResp.Response, queueResp.RespBytes, nil
 		}
-		if err.Error() == "token invalid" {
-			// 不需要重试，直接返回
-			lastErr = fmt.Errorf("访问凭证（Token）无效，请重新登录")
-			return nil, nil, lastErr
+
+		lastErr = queueResp.Error
+
+		// Token相关错误处理
+		if queueResp.RespData != nil {
+			switch queueResp.RespData.Code {
+			case ACCESS_TOKEN_AUTH_FAIL, ACCESS_AUTH_INVALID, ACCESS_TOKEN_EXPIRY_CODE:
+				helpers.V115Log.Errorf("访问凭证过期，等待自动刷新后下次重试")
+				lastErr = fmt.Errorf("访问凭证（Token）过期")
+			case REFRESH_TOKEN_INVALID:
+				lastErr = fmt.Errorf("访问凭证（Token）无效，请重新登录")
+				return queueResp.Response, queueResp.RespBytes, lastErr
+			}
 		}
-		// 如果是速率限制错误，等待30秒后重试
-		if err.Error() == "rate limit exceeded" {
-			helpers.V115Log.Warn("访问频率过高，停止请求")
-			// lastErr = fmt.Errorf("访问频率过高")
-			// time.Sleep(30 * time.Second)
-			// helpers.V115Log.Warn("因访问频率过高导致的暂停结束，开始重试请求")
-			return nil, nil, lastErr
+
+		// 如果是限流错误，不重试
+		if queueResp.IsThrottled {
+			helpers.V115Log.Warn("检测到限流，停止重试")
+			return queueResp.Response, queueResp.RespBytes, lastErr
 		}
 
 		// 其他错误开始重试
-		if attempt < options.MaxRetries {
-			helpers.V115Log.Warnf("%s %s 请求失败:%+v", req.Method, req.URL, lastErr)
-			helpers.V115Log.Warnf("%s %s 请求失败，%+v秒后重试 (第%d次尝试)", req.Method, req.URL, options.RetryDelay.Seconds(), attempt+1)
+		if attempt < options.MaxRetries && lastErr != nil {
+			helpers.V115Log.Warnf("%s %s 请求失败:%+v", req.Method, url, lastErr)
+			helpers.V115Log.Warnf("%s %s 请求失败，%+v秒后重试 (第%d次尝试)", req.Method, url, options.RetryDelay.Seconds(), attempt+1)
 			time.Sleep(options.RetryDelay)
 		}
 	}

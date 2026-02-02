@@ -35,7 +35,7 @@ func (c *OpenClient) UserInfo() (*UserInfo, error) {
 	url := fmt.Sprintf("%s/open/user/info", OPEN_BASE_URL)
 	req := c.client.R().SetMethod("GET")
 	respData := &UserInfo{}
-	_, _, err := c.doAuthRequest(context.Background(), url, req, MakeRequestConfig(true, 1, 1, 15), respData)
+	_, _, err := c.doAuthRequest(context.Background(), url, req, MakeRequestConfig(1, 1, 15), respData)
 	if err != nil {
 		helpers.V115Log.Errorf("调用用户信息接口失败: %v", err)
 		return nil, err

@@ -1,8 +1,10 @@
 package helpers
 
 import (
+	"bufio"
+	"fmt"
 	"os"
-	"path/filepath"
+	"strings"
 )
 
 var Version = "0.0.1"
@@ -10,7 +12,6 @@ var ReleaseDate = "2025-11-07"
 
 type configLog struct {
 	File       string `yaml:"file"`
-	Db         string `yaml:"db"`
 	V115       string `yaml:"v115"`
 	OpenList   string `yaml:"openList"`
 	TMDB       string `yaml:"tmdb"`
@@ -39,22 +40,26 @@ type Config struct {
 
 var GlobalConfig Config
 var RootDir string
+var ConfigDir string
+var DataDir string
 var IsRelease bool
 var Guid string
+var FANART_API_KEY = ""
+var DEFAULT_TMDB_ACCESS_TOKEN = ""
+var DEFAULT_TMDB_API_KEY = ""
+var DEFAULT_SC_API_KEY = ""
 
 func InitConfig() error {
 	GlobalConfig = Config{
 		Log: configLog{
-			File:     "config/logs/app.log",
-			Db:       "config/logs/db.log",
-			V115:     "config/logs/115.log",
-			OpenList: "config/logs/openList.log",
-			Web:      "config/logs/web.log",
-			TMDB:     "config/logs/tmdb.log",
+			File:     "logs/app.log",
+			V115:     "logs/115.log",
+			OpenList: "logs/openList.log",
+			TMDB:     "logs/tmdb.log",
 		},
 		Db: configDb{
-			File:      "config/db.db",
-			CacheSize: 134217728,
+			File:      "db.db",
+			CacheSize: 20971520, // 默认20MB
 		},
 		JwtSecret: "Q115-STRM-JWT-TOKEN-250706",
 		WebHost:   ":12333",
@@ -64,13 +69,44 @@ func InitConfig() error {
 			MetaExt:      []string{".jpg", ".jpeg", ".png", ".webp", ".gif", ".nfo", ".srt", ".ass", ".svg", ".sup", ".lrc"},
 			Cron:         "0 * * * *", // 默认每小时执行一次
 		},
-		Open115AppId:     "", // TODO 开源版本留空
-		Open115TestAppId: "", // TODO 开源版本留空
-	}
-	// 判断config.yml是否存在，如果存在则删除
-	configFile := filepath.Join(RootDir, "config/config.yml")
-	if PathExists(configFile) {
-		os.Remove(configFile)
+		Open115AppId:     "",
+		Open115TestAppId: "",
 	}
 	return nil
+}
+
+// LoadEnvFromFile loads environment variables from a simple KEY=VALUE file.
+// Lines starting with # and blank lines are ignored. Keys are trimmed; values are kept as-is.
+func LoadEnvFromFile(envPath string) error {
+	f, err := os.Open(envPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			fmt.Printf("env file does not exist: %s\n", envPath)
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := scanner.Text()
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		idx := strings.Index(line, "=")
+		if idx <= 0 {
+			continue
+		}
+		key := strings.TrimSpace(line[:idx])
+		if key == "" {
+			continue
+		}
+		value := line[idx+1:]
+		os.Setenv(key, value)
+		// fmt.Printf("Loaded env: %s=%s\n", key, value)
+	}
+
+	return scanner.Err()
 }

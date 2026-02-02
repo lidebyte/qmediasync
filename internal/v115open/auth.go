@@ -2,7 +2,9 @@ package v115open
 
 import (
 	"Q115-STRM/internal/helpers"
+
 	"fmt"
+	"time"
 )
 
 type QrCodeScanStatus int // 二维码扫码状态
@@ -46,7 +48,7 @@ func (c *OpenClient) GetQrCode() (*QrCodeDataReturn, error) {
 	data["code_challenge_method"] = "sha256"
 	req := c.client.R().SetFormData(data).SetMethod("POST")
 	qrData := StructOrArray[QrCodeData]{}
-	_, respData, err := c.doRequest("https://passportapi.115.com/open/authDeviceCode", req, MakeRequestConfig(true, 0, 0, 0))
+	_, respData, err := c.doRequest("https://passportapi.115.com/open/authDeviceCode", req, MakeRequestConfig(0, 0, 0))
 	if err != nil {
 		helpers.V115Log.Errorf("获取开放平台授权二维码失败: %s", err.Error())
 		return nil, err
@@ -77,7 +79,7 @@ func (c *OpenClient) QrCodeScanStatus(codeData *QrCodeData) (QrCodeScanStatus, e
 	data["time"] = fmt.Sprint(codeData.Time)
 	data["sign"] = codeData.Sign
 	req := c.client.R().SetQueryParams(data).SetMethod("GET")
-	_, respData, err := c.doRequest("https://qrcodeapi.115.com/get/status/", req, MakeRequestConfig(true, 1, 1, 60))
+	_, respData, err := c.doRequest("https://qrcodeapi.115.com/get/status/", req, MakeRequestConfig(1, 1, 60))
 	if err != nil {
 		helpers.V115Log.Errorf("获取二维码状态失败: %s", err.Error())
 		return QrCodeScanStatusExpired, err
@@ -112,7 +114,7 @@ func (c *OpenClient) GetToken(codeData *QrCodeDataReturn) (*TokenData, error) {
 	data["uid"] = codeData.Uid
 	data["code_verifier"] = codeData.CodeVerifier
 	req := c.client.R().SetFormData(data).SetMethod("POST")
-	_, respData, err := c.doRequest("https://passportapi.115.com/open/deviceCodeToToken", req, MakeRequestConfig(true, 0, 0, 0))
+	_, respData, err := c.doRequest("https://passportapi.115.com/open/deviceCodeToToken", req, MakeRequestConfig(0, 0, 0))
 	if err != nil {
 		helpers.V115Log.Errorf("开放平台获取访问凭证失败: %s", err.Error())
 		return nil, err
@@ -140,7 +142,12 @@ func (c *OpenClient) RefreshToken(refreshToken string) (*TokenData, error) {
 	data := make(map[string]string)
 	data["refresh_token"] = refreshToken
 	req := c.client.R().SetFormData(data).SetMethod("POST")
-	_, respData, err := c.doRequest("https://passportapi.115.com/open/refreshToken", req, MakeRequestConfig(true, 0, 0, 300))
+	refreshConfig := &RequestConfig{
+		MaxRetries: 0,
+		RetryDelay: 0,
+		Timeout:    300 * time.Second,
+	}
+	_, respData, err := c.doRequest("https://passportapi.115.com/open/refreshToken", req, refreshConfig)
 	if err != nil {
 		c.SetAuthToken("", "")
 		helpers.AppLogger.Errorf("115开放平台刷新访问凭证失败: %v", err)

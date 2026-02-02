@@ -262,6 +262,5 @@ func ChineseToPinyin(s string) (bool, string) {
 			result.WriteRune(ch)
 		}
 	}
-
 	return hasChinese, result.String()
 }

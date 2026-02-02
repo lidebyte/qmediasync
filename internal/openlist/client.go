@@ -130,8 +130,10 @@ func (c *Client) request(url string, req *resty.Request) (*resty.Response, error
 	if data != nil && jsonResult != nil {
 		switch jsonResult["code"].(float64) {
 		case http.StatusUnauthorized:
-			// token过期，发布刷新事件
-			c.GetToken()
+			// token过期，发布刷新事件，只有用户名和密码登录才需要刷新token
+			if c.Username != "" && c.Password != "" {
+				c.GetToken()
+			}
 			return response, fmt.Errorf("token expired")
 		}
 		if jsonResult["code"].(float64) != http.StatusOK {

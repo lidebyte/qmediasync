@@ -115,21 +115,20 @@ func (ct *CategoryTvShowImpl) DoCategory(mediaFile *models.ScrapeMediaFile) (str
 					break
 				}
 			}
+			// 如果没有交集，优先匹配流派
+			if c == nil {
+				c = fC[0]
+				helpers.AppLogger.Infof("取流派ID命中的分类 %d=>%s", c.ID, c.Name)
+			}
 		}
 		// 如果有精确的国家命中，没有精确的流派命中
 		if len(fL) > 0 && len(fC) == 0 {
 			for _, tempL := range fL {
 				if slices.Contains(fL, tempL) {
 					c = tempL
-
 					helpers.AppLogger.Infof("取国家命中的分类 %d=>%s", c.ID, c.Name)
 					break
 				}
-			}
-			// 如果没有交集，优先匹配流派
-			if c == nil {
-				c = fC[0]
-				helpers.AppLogger.Infof("取流派ID命中的分类 %d=>%s", c.ID, c.Name)
 			}
 		}
 		// 如果有精确的流派命中，没有精确的语言命中

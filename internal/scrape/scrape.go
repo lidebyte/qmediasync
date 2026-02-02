@@ -95,7 +95,7 @@ func (s *Scrape) initOpenClient() error {
 	}
 	switch s.scrapePath.SourceType {
 	case models.SourceType115:
-		s.V115Client = account.Get115Client(false)
+		s.V115Client = account.Get115Client()
 	case models.SourceTypeOpenList:
 		s.OpenlistClient = account.GetOpenListClient()
 	}
@@ -104,9 +104,9 @@ func (s *Scrape) initOpenClient() error {
 
 func (s *Scrape) CreateTmpRotDir() {
 	// 创建临时目录
-	s.scrapePath.ScrapeRootPath = filepath.Join(helpers.RootDir, "config", "tmp", "刮削临时文件", fmt.Sprintf("%d", s.scrapePath.ID), "电影或其他")
+	s.scrapePath.ScrapeRootPath = filepath.Join(helpers.ConfigDir, "tmp", "刮削临时文件", fmt.Sprintf("%d", s.scrapePath.ID), "电影或其他")
 	if s.scrapePath.MediaType == models.MediaTypeTvShow {
-		s.scrapePath.ScrapeRootPath = filepath.Join(helpers.RootDir, "config", "tmp", "刮削临时文件", fmt.Sprintf("%d", s.scrapePath.ID), "电视剧")
+		s.scrapePath.ScrapeRootPath = filepath.Join(helpers.ConfigDir, "tmp", "刮削临时文件", fmt.Sprintf("%d", s.scrapePath.ID), "电视剧")
 	}
 	if err := os.MkdirAll(s.scrapePath.ScrapeRootPath, 0777); err != nil {
 		helpers.AppLogger.Errorf("创建临时目录失败: %v", err)

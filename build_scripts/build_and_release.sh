@@ -116,13 +116,30 @@ for platform in "${PLATFORMS[@]}"; do
         # Get current date in format: yyyy-mm-dd HH:MM:ss
         PUBLISH_DATE=$(date "+%Y-%m-%d %H:%M:%S")
         
+        # Read API keys from environment variables
+        FANART_API_KEY="${FANART_API_KEY:-}"
+        DEFAULT_TMDB_ACCESS_TOKEN="${DEFAULT_TMDB_ACCESS_TOKEN:-}"
+        DEFAULT_TMDB_API_KEY="${DEFAULT_TMDB_API_KEY:-}"
+        DEFAULT_SC_API_KEY="${DEFAULT_SC_API_KEY:-}"
+        
+        # Check if any API key is empty
+        if [ -z "$FANART_API_KEY" ] || [ -z "$DEFAULT_TMDB_ACCESS_TOKEN" ] || [ -z "$DEFAULT_TMDB_API_KEY" ] || [ -z "$DEFAULT_SC_API_KEY" ]; then
+            print_colored "red" "Error: One or more API keys are not set"
+            print_colored "yellow" "Please set all required environment variables:"
+            print_colored "yellow" "  - FANART_API_KEY"
+            print_colored "yellow" "  - DEFAULT_TMDB_ACCESS_TOKEN"
+            print_colored "yellow" "  - DEFAULT_TMDB_API_KEY"
+            print_colored "yellow" "  - DEFAULT_SC_API_KEY"
+            exit 1
+        fi
+        
         # Determine executable name and link flags
         if [ "$platform" = "windows" ]; then
             EXE_NAME="QMediaSync.exe"
-            LDFLAGS="-s -w -X main.Version=$TAG -X 'main.PublishDate=$PUBLISH_DATE'"
+            LDFLAGS="-s -w -X main.Version=$TAG -X 'main.PublishDate=$PUBLISH_DATE' -X main.FANART_API_KEY=$FANART_API_KEY -X main.DEFAULT_TMDB_ACCESS_TOKEN=$DEFAULT_TMDB_ACCESS_TOKEN -X main.DEFAULT_TMDB_API_KEY=$DEFAULT_TMDB_API_KEY -X main.DEFAULT_SC_API_KEY=$DEFAULT_SC_API_KEY"
         else
             EXE_NAME="QMediaSync"
-            LDFLAGS="-s -w -X main.Version=$TAG -X 'main.PublishDate=$PUBLISH_DATE'"
+            LDFLAGS="-s -w -X main.Version=$TAG -X 'main.PublishDate=$PUBLISH_DATE' -X main.FANART_API_KEY=$FANART_API_KEY -X main.DEFAULT_TMDB_ACCESS_TOKEN=$DEFAULT_TMDB_ACCESS_TOKEN -X main.DEFAULT_TMDB_API_KEY=$DEFAULT_TMDB_API_KEY -X main.DEFAULT_SC_API_KEY=$DEFAULT_SC_API_KEY"
         fi
         
         # Build
@@ -301,6 +318,55 @@ if gh release create "$TAG" \
     
     echo
     print_colored "green" "✓ GitHub Release created successfully in qicfan/qmediasync!"
+    
+    # Send Telegram notification after successful release
+    print_colored "cyan" "Sending release notes to Telegram..."
+    TELEGRAM_BOT_TOKEN="8443342516:AAGC0pwtZfgyTR8dQtNTQ2uTWqCoZKzE0AI"
+    TELEGRAM_CHAT_ID="-1003892669499"
+    
+    # Escape special characters for JSON
+    TELEGRAM_MESSAGE=$(echo "$RELEASE_BODY" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | awk '{printf "%s\\n", $0}')
+    
+    # Send message to Telegram using Markdown format
+    TELEGRAM_RESPONSE=$(curl -s -X POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+        -H "Content-Type: application/json" \
+        -d "{
+            \"chat_id\": \"${TELEGRAM_CHAT_ID}\",
+            \"text\": \"${TELEGRAM_MESSAGE}\",
+            \"parse_mode\": \"Markdown\"
+        }")
+    
+    if echo "$TELEGRAM_RESPONSE" | grep -q '"ok":true'; then
+        print_colored "green" "✓ Release notes sent to Telegram successfully"
+        
+        # Send MeoW notification after successful Telegram message
+        print_colored "cyan" "Sending release notes to MeoW..."
+        MEOW_API_URL="https://www.chuckfang.com/MeoW/Broadcast.html"
+        MEOW_CHANNEL_ID="cb7fc49997b44242bbb43590128a6eb8"
+        MEOW_UNION_ID="MDGpNMFFfEib0jtgpTY63wRktiaOHmvr0N3d7JaZLibEwgMIg"
+        
+        # Escape special characters for JSON
+        MEOW_MESSAGE=$(echo "$RELEASE_BODY" | sed 's/\\/\\\\/g' | sed 's/"/\\"/g' | awk '{printf "%s\\n", $0}')
+        
+        # Send message to MeoW
+        MEOW_RESPONSE=$(curl -s -X POST "$MEOW_API_URL" \
+            -H "Content-Type: application/json" \
+            -d "{
+                \"channelId\": \"${MEOW_CHANNEL_ID}\",
+                \"unionId\": \"${MEOW_UNION_ID}\",
+                \"message\": \"${MEOW_MESSAGE}\"
+            }")
+        
+        if echo "$MEOW_RESPONSE" | grep -q '"success":true'; then
+            print_colored "green" "✓ Release notes sent to MeoW successfully"
+        else
+            print_colored "yellow" "Warning: Failed to send message to MeoW"
+            print_colored "yellow" "Response: $MEOW_RESPONSE"
+        fi
+    else
+        print_colored "yellow" "Warning: Failed to send message to Telegram"
+        print_colored "yellow" "Response: $TELEGRAM_RESPONSE"
+    fi
 else
     print_colored "red" "Error: Failed to create GitHub Release"
 fi

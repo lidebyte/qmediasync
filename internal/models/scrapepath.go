@@ -245,7 +245,7 @@ func (sp *ScrapePath) Init() bool {
 		}
 		switch sp.SourceType {
 		case SourceType115:
-			sp.V115Client = account.Get115Client(false)
+			sp.V115Client = account.Get115Client()
 			if sp.V115Client == nil {
 				helpers.AppLogger.Errorf("获取115客户端失败")
 				return false
@@ -261,9 +261,9 @@ func (sp *ScrapePath) Init() bool {
 		}
 	}
 	// 创建临时目录
-	sp.ScrapeRootPath = filepath.Join(helpers.RootDir, "config", "tmp", "刮削临时文件", fmt.Sprintf("%d", sp.ID), "电影或其他")
+	sp.ScrapeRootPath = filepath.Join(helpers.ConfigDir, "tmp", "刮削临时文件", fmt.Sprintf("%d", sp.ID), "电影或其他")
 	if sp.MediaType == MediaTypeTvShow {
-		sp.ScrapeRootPath = filepath.Join(helpers.RootDir, "config", "tmp", "刮削临时文件", fmt.Sprintf("%d", sp.ID), "电视剧")
+		sp.ScrapeRootPath = filepath.Join(helpers.ConfigDir, "tmp", "刮削临时文件", fmt.Sprintf("%d", sp.ID), "电视剧")
 	}
 	if err := os.MkdirAll(sp.ScrapeRootPath, 0777); err != nil {
 		helpers.AppLogger.Errorf("创建临时目录失败: %v", err)
@@ -355,7 +355,7 @@ func (sp *ScrapePath) GetDownloadUrl(videoPathOrUrl string) string {
 	}
 	switch sp.SourceType {
 	case SourceType115:
-		videoPathOrUrl = sp.V115Client.GetDownloadUrl(context.Background(), videoPathOrUrl, v115open.DEFAULTUA)
+		videoPathOrUrl = sp.V115Client.GetDownloadUrl(context.Background(), videoPathOrUrl, v115open.DEFAULTUA, false)
 	case SourceTypeOpenList:
 		videoPathOrUrl = sp.OpenListClient.GetRawUrl(videoPathOrUrl)
 	case SourceType123:

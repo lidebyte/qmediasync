@@ -1,12 +1,17 @@
 package v115open
 
+import (
+	"Q115-STRM/internal/helpers"
+	"fmt"
+)
+
 const (
 	// API常量
 	ACCESS_TOKEN_AUTH_FAIL   = 40140126 // 刷新访问凭证
 	ACCESS_TOKEN_EXPIRY_CODE = 40140125 // 刷新访问凭证
 	ACCESS_AUTH_INVALID      = 40140124 // 刷新访问凭证
 	REFRESH_TOKEN_INVALID    = 40140116 // 重新授权
-	REQUEST_MAX_LIMIT_CODE   = 770004
+	REQUEST_MAX_LIMIT_CODE   = 770004   // 访问频率过高
 	OPEN_BASE_URL            = "https://proapi.115.com"
 
 	// 重试配置
@@ -15,6 +20,6 @@ const (
 
 	// 超时配置
 	DEFAULT_TIMEOUT = 30 // 秒
-
-	DEFAULTUA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36 Edg/138.0.0.0"
 )
+
+var DEFAULTUA = fmt.Sprintf("QMediaSync-GoClient/%s", helpers.Version)

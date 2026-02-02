@@ -20,7 +20,7 @@ var Db *gorm.DB
 var Manager *database.Manager // 全局数据库管理器
 
 // 获取一个数据库连接
-func GetDb(dbFile string) *gorm.DB {
+func InitSqlite3(dbFile string) *gorm.DB {
 	if !helpers.PathExists(dbFile) {
 		return nil
 	}
@@ -33,7 +33,7 @@ func GetDb(dbFile string) *gorm.DB {
 	return sqliteDb
 }
 
-func InitDb(sqlDB *sql.DB) {
+func InitPostgres(sqlDB *sql.DB) {
 	// 配置Logger
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
@@ -44,7 +44,11 @@ func InitDb(sqlDB *sql.DB) {
 			Colorful:                  true,                   // 禁用彩色打印
 		},
 	)
-
+	// 配置连接池
+	sqlDB.SetMaxOpenConns(25)                  // 最多打开25个连接
+	sqlDB.SetMaxIdleConns(5)                   // 最多5个空闲连接
+	sqlDB.SetConnMaxLifetime(60 * time.Minute) // 连接最多使用5分钟
+	sqlDB.SetConnMaxIdleTime(1 * time.Minute)  // 空闲超过10秒则关闭
 	var err error
 	Db, err = gorm.Open(postgres.New(postgres.Config{
 		Conn: sqlDB,
@@ -55,6 +59,16 @@ func InitDb(sqlDB *sql.DB) {
 	// 设置全局Logger
 	Db.Logger = newLogger
 	helpers.AppLogger.Info("成功初始化数据库组件")
+}
+
+// IsPostgres 判断当前使用的是否为PostgreSQL数据库
+func IsPostgres() bool {
+	if Manager == nil {
+		return false
+	}
+	mode := Manager.GetMode()
+	// embedded和external模式都是PostgreSQL
+	return mode == "embedded" || mode == "external"
 }
 
 // func ClearDbLock(configRootPath string) {

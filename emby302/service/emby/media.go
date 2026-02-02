@@ -350,7 +350,7 @@ func simplifyMediaName(source *jsons.Item) {
 	}
 	originName, _ := source.Attr("Name").String()
 	source.Put("Name", jsons.FromValue(originName))
-	// return
+
 	// vs, ok := tryGetVideoStreamInfo(source)
 	// if !ok {
 	// 	return

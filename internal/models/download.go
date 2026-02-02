@@ -3,8 +3,11 @@ package models
 import (
 	"Q115-STRM/internal/db"
 	"Q115-STRM/internal/helpers"
+	"context"
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
 )
 
 // DownloadQueue 下载队列
@@ -13,6 +16,7 @@ type DQ struct {
 	numWorkers int                  // 工作线程数
 	mutex      sync.RWMutex         // 读写锁，保护TaskMap
 	running    bool                 // 队列是否正在运行
+	limiter    *rate.Limiter        // 限速器，控制QPS
 }
 
 // String 返回状态的字符串表示
@@ -50,14 +54,19 @@ func InitDQ() bool {
 
 func NewDq(maxConcurrency int) *DQ {
 	return &DQ{
-		tasks:      make(chan *DbDownloadTask, maxConcurrency),
+		tasks:      make(chan *DbDownloadTask, maxConcurrency*10),
 		numWorkers: maxConcurrency,
 		running:    false,
+		limiter:    rate.NewLimiter(rate.Limit(maxConcurrency), maxConcurrency),
 	}
 }
 
 // 启动下载队列的工作协程
 func (dq *DQ) Start() {
+	// 重新创建tasks通道
+	dq.mutex.Lock()
+	dq.tasks = make(chan *DbDownloadTask, dq.numWorkers*10)
+	dq.mutex.Unlock()
 	// 将所有的下载中改为待下载
 	db.Db.Model(&DbDownloadTask{}).Where("status = ?", DownloadStatusDownloading).Update("status", DownloadStatusPending)
 	dq.mutex.Lock()
@@ -98,18 +107,52 @@ func (dq *DQ) Stop() {
 // Restart 重启下载队列
 func (dq *DQ) Restart() {
 	dq.Stop()
-	// 重新创建tasks通道
-	dq.mutex.Lock()
-	dq.tasks = make(chan *DbDownloadTask, dq.numWorkers)
-	dq.mutex.Unlock()
 	dq.Start()
 	helpers.AppLogger.Info("下载队列已重启")
+}
+
+// UpdateConcurrency 更新并发数
+func (dq *DQ) UpdateConcurrency(newConcurrency int) {
+	if newConcurrency <= 0 {
+		helpers.AppLogger.Errorf("无效的并发数: %d", newConcurrency)
+		return
+	}
+
+	dq.mutex.Lock()
+	defer dq.mutex.Unlock()
+
+	oldConcurrency := dq.numWorkers
+	dq.numWorkers = newConcurrency
+
+	// 更新限速器
+	if dq.limiter != nil {
+		dq.limiter.SetLimit(rate.Limit(newConcurrency))
+		dq.limiter.SetBurst(newConcurrency)
+	}
+
+	// 如果并发数增加了，需要启动新的 worker
+	if newConcurrency > oldConcurrency {
+		for i := oldConcurrency; i < newConcurrency; i++ {
+			go dq.worker()
+		}
+		helpers.AppLogger.Infof("下载队列并发数从 %d 增加到 %d", oldConcurrency, newConcurrency)
+	} else if newConcurrency < oldConcurrency {
+		// 如果并发数减少了，多余的工作协程会在下次循环中自动退出
+		helpers.AppLogger.Infof("下载队列并发数从 %d 减少到 %d", oldConcurrency, newConcurrency)
+	}
+}
+
+// GetConcurrency 获取当前并发数
+func (dq *DQ) GetConcurrency() int {
+	dq.mutex.RLock()
+	defer dq.mutex.RUnlock()
+	return dq.numWorkers
 }
 
 // 任务调度器，定期将TaskMap中的任务加入到tasks通道
 // taskScheduler 定时将TaskMap中的任务移动到tasks通道
 func (dq *DQ) taskScheduler() {
-	ticker := time.NewTicker(1 * time.Second)
+	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
 
 	for {
@@ -119,7 +162,6 @@ func (dq *DQ) taskScheduler() {
 		dq.mutex.RUnlock()
 
 		if !running {
-			// helpers.AppLogger.Debug("下载队列已停止，任务调度器退出")
 			return
 		}
 
@@ -174,6 +216,8 @@ outer:
 		select {
 		case dq.tasks <- task:
 			movedCount++
+			// 将任务标记为下载中， 防止重复添加
+			task.Downloading()
 		default:
 			// 通道已满，停止移动任务
 			break outer
@@ -187,10 +231,6 @@ outer:
 // 执行下载任务
 // 工作协程
 func (dq *DQ) worker() {
-	// 创建一个令牌桶限速器，每秒允许处理numWorkers个任务
-	limiter := time.NewTicker(time.Second / time.Duration(dq.numWorkers))
-	defer limiter.Stop()
-
 	for {
 		// 检查队列是否仍在运行
 		dq.mutex.RLock()
@@ -201,22 +241,20 @@ func (dq *DQ) worker() {
 			break
 		}
 
-		// 等待限速器令牌
-		<-limiter.C
+		// 等待限速器令牌（所有worker共享同一个limiter）
+		if err := dq.limiter.Wait(context.Background()); err != nil {
+			helpers.AppLogger.Errorf("等待限速器失败: %v", err)
+			continue
+		}
 
 		// 尝试从任务通道获取任务
-		select {
-		case task, ok := <-dq.tasks:
-			if !ok {
-				// 通道已关闭，退出工作协程
-				return
-			}
-			// 执行下载任务
-			task.Download()
-		default:
-			// 没有任务时短暂休眠
-			time.Sleep(100 * time.Millisecond)
+		task, ok := <-dq.tasks
+		if !ok {
+			// 通道已关闭，退出工作协程
+			return
 		}
+		// 执行下载任务
+		task.Download()
 	}
 }
 
@@ -234,4 +272,22 @@ func RestartGlobalDownloadQueue() {
 	} else {
 		helpers.AppLogger.Error("全局下载队列未初始化")
 	}
+}
+
+// UpdateGlobalDownloadQueueConcurrency 更新全局下载队列的并发数
+func UpdateGlobalDownloadQueueConcurrency(newConcurrency int) {
+	if GlobalDownloadQueue != nil {
+		GlobalDownloadQueue.UpdateConcurrency(newConcurrency)
+		helpers.AppLogger.Infof("全局下载队列并发数已更新为 %d", newConcurrency)
+	} else {
+		helpers.AppLogger.Error("全局下载队列未初始化")
+	}
+}
+
+// GetGlobalDownloadQueueConcurrency 获取全局下载队列的并发数
+func GetGlobalDownloadQueueConcurrency() int {
+	if GlobalDownloadQueue != nil {
+		return GlobalDownloadQueue.GetConcurrency()
+	}
+	return 0
 }

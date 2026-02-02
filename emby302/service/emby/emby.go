@@ -48,6 +48,8 @@ func ProxySocket() func(*gin.Context) {
 // HandleImages 处理图片请求
 //
 // 修改图片质量参数为配置值
+// TODO 尝试跳转到115缩略图地址
+// 根据itemid查询SyncFile，如果有115缩略图地址，就跳转过去
 func HandleImages(c *gin.Context) {
 	q := c.Request.URL.Query()
 	q.Del("quality")

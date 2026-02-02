@@ -18,6 +18,16 @@ import (
 )
 
 // GetNotificationChannels 获取所有通知渠道
+// @Summary 获取通知渠道列表
+// @Description 获取已配置的通知渠道列表
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetNotificationChannels(c *gin.Context) {
 	var channels []models.NotificationChannel
 	if err := db.Db.Find(&channels).Error; err != nil {
@@ -37,6 +47,19 @@ func GetNotificationChannels(c *gin.Context) {
 }
 
 // CreateTelegramChannel 创建Telegram渠道
+// @Summary 创建Telegram渠道
+// @Description 创建Telegram通知渠道并保存配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_name body string true "渠道名称"
+// @Param bot_token body string true "机器人Token"
+// @Param chat_id body string true "聊天ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/telegram [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func CreateTelegramChannel(c *gin.Context) {
 	type req struct {
 		ChannelName string `json:"channel_name" binding:"required"`
@@ -114,6 +137,19 @@ func CreateTelegramChannel(c *gin.Context) {
 }
 
 // CreateMeoWChannel 创建MeoW渠道
+// @Summary 创建MeoW渠道
+// @Description 创建MeoW通知渠道并保存配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_name body string true "渠道名称"
+// @Param nickname body string true "昵称"
+// @Param endpoint body string false "接口地址"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/meow [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func CreateMeoWChannel(c *gin.Context) {
 	type req struct {
 		ChannelName string `json:"channel_name" binding:"required"`
@@ -195,6 +231,21 @@ func CreateMeoWChannel(c *gin.Context) {
 }
 
 // CreateBarkChannel 创建Bark渠道
+// @Summary 创建Bark渠道
+// @Description 创建Bark通知渠道并保存配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_name body string true "渠道名称"
+// @Param device_key body string true "设备Key"
+// @Param server_url body string false "服务器地址"
+// @Param sound body string false "提示音"
+// @Param icon body string false "图标URL"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/bark [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func CreateBarkChannel(c *gin.Context) {
 	type req struct {
 		ChannelName string `json:"channel_name" binding:"required"`
@@ -283,6 +334,19 @@ func CreateBarkChannel(c *gin.Context) {
 }
 
 // CreateServerChanChannel 创建Server酱渠道
+// @Summary 创建Server酱渠道
+// @Description 创建Server酱通知渠道并保存配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_name body string true "渠道名称"
+// @Param sc_key body string true "SCKEY"
+// @Param endpoint body string false "接口地址"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/serverchan [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func CreateServerChanChannel(c *gin.Context) {
 	type req struct {
 		ChannelName string `json:"channel_name" binding:"required"`
@@ -364,6 +428,30 @@ func CreateServerChanChannel(c *gin.Context) {
 }
 
 // CreateCustomWebhookChannel 创建自定义 Webhook 渠道
+// @Summary 创建Webhook渠道
+// @Description 创建自定义Webhook通知渠道并保存配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_name body string true "渠道名称"
+// @Param endpoint body string true "Webhook地址"
+// @Param method body string true "请求方法(GET/POST)"
+// @Param template body string true "模板内容"
+// @Param format body string false "POST格式(json|form|text)"
+// @Param query_param body string false "GET参数名，默认q"
+// @Param auth_type body string false "鉴权类型 none|bearer|basic|header|query"
+// @Param auth_token body string false "鉴权Token"
+// @Param auth_user body string false "Basic用户名"
+// @Param auth_pass body string false "Basic密码"
+// @Param auth_header_key body string false "Header键"
+// @Param auth_query_key body string false "Query键"
+// @Param headers body object false "附加请求头"
+// @Param description body string false "描述"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/webhook [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func CreateCustomWebhookChannel(c *gin.Context) {
 	type req struct {
 		ChannelName string `json:"channel_name" binding:"required"`
@@ -513,6 +601,31 @@ func CreateCustomWebhookChannel(c *gin.Context) {
 }
 
 // UpdateCustomWebhookChannel 更新自定义 Webhook 渠道配置
+// @Summary 更新Webhook渠道
+// @Description 更新自定义Webhook渠道的基础信息和模板
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_id body integer true "渠道ID"
+// @Param channel_name body string false "渠道名称"
+// @Param endpoint body string false "Webhook地址"
+// @Param method body string false "请求方法(GET/POST)"
+// @Param template body string false "模板内容"
+// @Param format body string false "POST格式(json|form|text)"
+// @Param query_param body string false "GET参数名"
+// @Param auth_type body string false "鉴权类型"
+// @Param auth_token body string false "鉴权Token"
+// @Param auth_user body string false "Basic用户名"
+// @Param auth_pass body string false "Basic密码"
+// @Param auth_header_key body string false "Header键"
+// @Param auth_query_key body string false "Query键"
+// @Param headers body object false "附加请求头"
+// @Param description body string false "描述"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/webhook [put]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateCustomWebhookChannel(c *gin.Context) {
 	type req struct {
 		ChannelID     uint              `json:"channel_id" binding:"required"`
@@ -697,6 +810,21 @@ func UpdateCustomWebhookChannel(c *gin.Context) {
 }
 
 // UpdateTelegramChannel 更新 Telegram 渠道配置
+// @Summary 更新Telegram渠道
+// @Description 更新Telegram渠道名称与配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_id body integer true "渠道ID"
+// @Param channel_name body string false "渠道名称"
+// @Param bot_token body string false "机器人Token"
+// @Param chat_id body string false "聊天ID"
+// @Param description body string false "描述"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/telegram [put]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateTelegramChannel(c *gin.Context) {
 	type req struct {
 		ChannelID   uint   `json:"channel_id" binding:"required"`
@@ -770,6 +898,21 @@ func UpdateTelegramChannel(c *gin.Context) {
 }
 
 // UpdateMeoWChannel 更新 MeoW 渠道配置
+// @Summary 更新MeoW渠道
+// @Description 更新MeoW渠道名称与配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_id body integer true "渠道ID"
+// @Param channel_name body string false "渠道名称"
+// @Param nickname body string false "昵称"
+// @Param endpoint body string false "接口地址"
+// @Param description body string false "描述"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/meow [put]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateMeoWChannel(c *gin.Context) {
 	type req struct {
 		ChannelID   uint   `json:"channel_id" binding:"required"`
@@ -843,6 +986,23 @@ func UpdateMeoWChannel(c *gin.Context) {
 }
 
 // UpdateBarkChannel 更新 Bark 渠道配置
+// @Summary 更新Bark渠道
+// @Description 更新Bark渠道名称与配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_id body integer true "渠道ID"
+// @Param channel_name body string false "渠道名称"
+// @Param device_key body string false "设备Key"
+// @Param server_url body string false "服务器地址"
+// @Param sound body string false "提示音"
+// @Param icon body string false "图标URL"
+// @Param description body string false "描述"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/bark [put]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateBarkChannel(c *gin.Context) {
 	type req struct {
 		ChannelID   uint   `json:"channel_id" binding:"required"`
@@ -924,6 +1084,21 @@ func UpdateBarkChannel(c *gin.Context) {
 }
 
 // UpdateServerChanChannel 更新 Server酱 渠道配置
+// @Summary 更新Server酱渠道
+// @Description 更新Server酱渠道名称与配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_id body integer true "渠道ID"
+// @Param channel_name body string false "渠道名称"
+// @Param sc_key body string false "SCKEY"
+// @Param endpoint body string false "接口地址"
+// @Param description body string false "描述"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/serverchan [put]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateServerChanChannel(c *gin.Context) {
 	type req struct {
 		ChannelID   uint   `json:"channel_id" binding:"required"`
@@ -1005,6 +1180,18 @@ func replaceVarsWithEmpty(s string) string {
 }
 
 // UpdateChannelStatus 启用/禁用渠道
+// @Summary 更新渠道启用状态
+// @Description 启用或禁用指定通知渠道
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_id body integer true "渠道ID"
+// @Param is_enabled body boolean false "是否启用"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/status [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateChannelStatus(c *gin.Context) {
 	type req struct {
 		ChannelID uint `json:"channel_id" binding:"required"`
@@ -1045,6 +1232,17 @@ func UpdateChannelStatus(c *gin.Context) {
 }
 
 // GetTelegramChannel 查询单个 Telegram 渠道配置
+// @Summary 获取Telegram渠道
+// @Description 根据ID获取Telegram渠道及配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param id path integer true "渠道ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/telegram/{id} [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetTelegramChannel(c *gin.Context) {
 	channelID := c.Param("id")
 	var channel models.NotificationChannel
@@ -1068,6 +1266,17 @@ func GetTelegramChannel(c *gin.Context) {
 }
 
 // GetMeoWChannel 查询单个 MeoW 渠道配置
+// @Summary 获取MeoW渠道
+// @Description 根据ID获取MeoW渠道及配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param id path integer true "渠道ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/meow/{id} [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetMeoWChannel(c *gin.Context) {
 	channelID := c.Param("id")
 	var channel models.NotificationChannel
@@ -1091,6 +1300,17 @@ func GetMeoWChannel(c *gin.Context) {
 }
 
 // GetBarkChannel 查询单个 Bark 渠道配置
+// @Summary 获取Bark渠道
+// @Description 根据ID获取Bark渠道及配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param id path integer true "渠道ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/bark/{id} [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetBarkChannel(c *gin.Context) {
 	channelID := c.Param("id")
 	var channel models.NotificationChannel
@@ -1114,6 +1334,17 @@ func GetBarkChannel(c *gin.Context) {
 }
 
 // GetServerChanChannel 查询单个 Server酱 渠道配置
+// @Summary 获取Server酱渠道
+// @Description 根据ID获取Server酱渠道及配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param id path integer true "渠道ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/serverchan/{id} [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetServerChanChannel(c *gin.Context) {
 	channelID := c.Param("id")
 	var channel models.NotificationChannel
@@ -1137,6 +1368,17 @@ func GetServerChanChannel(c *gin.Context) {
 }
 
 // GetCustomWebhookChannel 查询单个 Webhook 渠道配置
+// @Summary 获取Webhook渠道
+// @Description 根据ID获取Webhook渠道及配置
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param id path integer true "渠道ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/webhook/{id} [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetCustomWebhookChannel(c *gin.Context) {
 	channelID := c.Param("id")
 	var channel models.NotificationChannel
@@ -1182,6 +1424,17 @@ func GetCustomWebhookChannel(c *gin.Context) {
 }
 
 // DeleteChannel 删除渠道
+// @Summary 删除通知渠道
+// @Description 删除渠道及其配置与规则
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param id path integer true "渠道ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/{id} [delete]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func DeleteChannel(c *gin.Context) {
 	channelID := c.Param("id")
 	if channelID == "" {
@@ -1237,6 +1490,17 @@ func DeleteChannel(c *gin.Context) {
 }
 
 // GetNotificationRules 获取通知规则
+// @Summary 获取通知规则
+// @Description 获取指定渠道的通知规则列表
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_id query integer false "渠道ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/rules [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetNotificationRules(c *gin.Context) {
 	channelID := c.Query("channel_id")
 
@@ -1262,6 +1526,19 @@ func GetNotificationRules(c *gin.Context) {
 }
 
 // UpdateNotificationRule 更新通知规则
+// @Summary 更新通知规则
+// @Description 创建或更新渠道的事件通知规则
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_id body integer true "渠道ID"
+// @Param event_type body string true "事件类型"
+// @Param is_enabled body boolean false "是否启用"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/rules [put]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateNotificationRule(c *gin.Context) {
 	type req struct {
 		ChannelID uint   `json:"channel_id" binding:"required"`
@@ -1330,6 +1607,17 @@ func UpdateNotificationRule(c *gin.Context) {
 }
 
 // TestChannelConnection 测试渠道连接
+// @Summary 测试通知渠道
+// @Description 发送测试消息验证通知渠道可用性
+// @Tags 通知管理
+// @Accept json
+// @Produce json
+// @Param channel_id body integer true "渠道ID"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /setting/notification/channels/test [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func TestChannelConnection(c *gin.Context) {
 	type req struct {
 		ChannelID uint `json:"channel_id" binding:"required"`

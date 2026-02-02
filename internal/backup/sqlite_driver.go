@@ -94,7 +94,7 @@ func (d *SQLiteDriver) ExportToSQL(writer io.Writer) (int, int64, error) {
 
 func (d *SQLiteDriver) exportTableData(writer io.Writer, tableName string) error {
 	// SQLite数据导出实现
-	// 类似PostgreSQL的实现逻辑
+	// 直接备份数据库文件压缩打包
 	return nil
 }
 

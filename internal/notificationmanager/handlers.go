@@ -105,8 +105,8 @@ func (h *TelegramChannelHandler) Send(ctx context.Context, notification *notific
 func (h *TelegramChannelHandler) formatMessage(notification *notification.Notification) string {
 	// timestamp := notification.Timestamp.Format("2006-01-02 15:04:05")
 
-	message := fmt.Sprintf("<b>%s</b>\n\n", notification.Title)
-	message += fmt.Sprintf("%s\n\n", notification.Content)
+	message := fmt.Sprintf("<b>%s</b>\n", notification.Title)
+	message += fmt.Sprintf("%s\n", notification.Content)
 
 	if len(notification.Metadata) > 0 {
 		for key, value := range notification.Metadata {

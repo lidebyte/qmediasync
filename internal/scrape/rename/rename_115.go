@@ -374,7 +374,7 @@ func (r *Rename115) RemoveMediaSourcePath(mediaFile *models.ScrapeMediaFile, sp 
 	hasSeason := true
 	sourcePathId := mediaFile.PathId
 	sourcePath := mediaFile.Path
-	if sourcePathId == "" && mediaFile.MediaType == models.MediaTypeTvShow {
+	if sourcePathId == "" {
 		sourcePathId = mediaFile.TvshowPathId
 		sourcePath = mediaFile.TvshowPath
 		hasSeason = false
@@ -460,7 +460,7 @@ func (r *Rename115) RemoveMediaSourcePath(mediaFile *models.ScrapeMediaFile, sp 
 
 func (r *Rename115) ReadFileContent(fileId string) ([]byte, error) {
 	ctx := context.Background()
-	url := r.client.GetDownloadUrl(ctx, fileId, v115open.DEFAULTUA)
+	url := r.client.GetDownloadUrl(ctx, fileId, v115open.DEFAULTUA, false)
 	if url == "" {
 		helpers.AppLogger.Errorf("获取115文件下载链接失败: pickcode=%s, url为空", fileId)
 		return nil, errors.New("获取115文件下载链接失败, url为空")

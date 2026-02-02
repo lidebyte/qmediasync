@@ -110,10 +110,10 @@ func (task *DbDownloadTask) Downloading() {
 // 执行下载
 func (task *DbDownloadTask) Download() {
 	if helpers.PathExists(task.LocalFullPath) {
+		task.Complete()
 		helpers.AppLogger.Infof("文件已存在，无需下载：%s", task.LocalFullPath)
 		// 设置文件修改时间
-		task.SetMTime()
-		task.Complete()
+		// task.SetMTime()
 		return
 	}
 	switch task.Source {
@@ -165,25 +165,31 @@ func (task *DbDownloadTask) Download115File() {
 		task.Fail(fmt.Errorf("账户不存在，无法下载文件%s", task.LocalFullPath))
 		return
 	}
-	if task.SyncFileId == 0 {
-		task.Fail(fmt.Errorf("115文件ID为空，无法下载文件%s", task.LocalFullPath))
-		return
-	}
+	// if task.SyncFileId == 0 {
+	// 	task.Fail(fmt.Errorf("115文件ID为空，无法下载文件%s", task.LocalFullPath))
+	// 	return
+	// }
 	// 先根据pickcode查询115文件
-	file := GetSyncFileById(task.SyncFileId)
-	if file == nil {
-		task.Fail(fmt.Errorf("115文件ID不存在，无法下载文件%s", task.LocalFullPath))
+	// file := GetSyncFileById(task.SyncFileId)
+	// if file == nil {
+	// 	task.Fail(fmt.Errorf("115文件ID不存在，无法下载文件%s", task.LocalFullPath))
+	// 	return
+	// }
+	// 再次检查文件是否已存在
+	if helpers.PathExists(task.LocalFullPath) {
+		helpers.AppLogger.Infof("[下载] 文件已存在，无需下载：%s", task.LocalFullPath)
+		task.Complete()
 		return
 	}
 	// 标记为下载中
 	task.Downloading()
 	// 查询下载链接
-	v115Client := account.Get115Client(false)
+	v115Client := account.Get115Client()
 	// 首先获取到下载链接
-	url := v115Client.GetDownloadUrl(context.Background(), file.PickCode, v115open.DEFAULTUA)
+	url := v115Client.GetDownloadUrl(context.Background(), task.RemoteFileId, v115open.DEFAULTUA, false)
 	if url == "" {
-		helpers.AppLogger.Warnf("[下载] 获取下载链接失败: %s", file.PickCode)
-		task.Fail(fmt.Errorf("获取 %s => %s 的下载链接失败", file.PickCode, file.FileName))
+		helpers.AppLogger.Warnf("[下载] 获取下载链接失败: %s", task.RemoteFileId)
+		task.Fail(fmt.Errorf("获取 %s => %s 的下载链接失败", task.RemoteFileId, task.FileName))
 		return
 	}
 	// 下载文件到指定位置
@@ -262,7 +268,9 @@ func (task *DbDownloadTask) DownloadEmbyMedia() {
 		task.Fail(doErr)
 		return
 	}
-	helpers.AppLogger.Infof("[Emby媒体信息提取] 成功, 名称 %s, Emby ItemID: %s", task.FileName, task.RemoteFileId)
+	if helpers.IsRelease {
+		helpers.AppLogger.Infof("[Emby媒体信息提取] 成功, 名称 %s, Emby ItemID: %s", task.FileName, task.RemoteFileId)
+	}
 	task.Complete()
 }
 
@@ -281,7 +289,7 @@ func CheckDownloadTaskExist(source DownloadSource, remoteFileId string) *DbDownl
 // 添加任务
 func AddDownloadTaskFromSyncFile(file *SyncFile) error {
 	// 先检查是否存在
-	if task := CheckDownloadTaskExist(DownloadSourceStrm, file.FileId); task != nil {
+	if task := CheckDownloadTaskExist(DownloadSourceStrm, file.PickCode); task != nil {
 		if task.Status == DownloadStatusPending {
 			return errors.New("任务已存在，状态为待下载")
 		}
@@ -298,9 +306,9 @@ func AddDownloadTaskFromSyncFile(file *SyncFile) error {
 	}
 	// 插入新纪录
 	task := &DbDownloadTask{
-		AccountId:     file.SyncPath.AccountId,
+		AccountId:     file.AccountId,
 		SyncFileId:    file.ID,
-		RemoteFileId:  file.FileId,
+		RemoteFileId:  file.PickCode,
 		FileName:      file.FileName,
 		RemotePath:    file.Path,
 		LocalFullPath: file.LocalFilePath,

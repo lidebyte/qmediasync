@@ -115,23 +115,23 @@ func Redirect2OpenlistLink(c *gin.Context) {
 	// 4 如果是远程地址 (strm), 重定向处理
 	if urls.IsRemote(strmUrl) || strings.HasPrefix(strmUrl, "http") || strings.HasPrefix(strmUrl, "nfs:") {
 		// 异步发送一个播放 Playback 请求, 触发 emby 解析 strm 视频格式
-		go func() {
-			// logs.Success("异步发送一个播放 Playback 请求, 触发 emby 解析 strm 视频格式, embyHost: %s, playbackInfoUri: %s", config.C.Emby.Host, itemInfo.PlaybackInfoUri)
-			originUrl, err := url.Parse(config.C.Emby.Host + itemInfo.PlaybackInfoUri)
-			logs.Success("异步发送一个播放 Playback 请求, 触发 emby 解析 strm 视频格式: %s", originUrl.String())
-			if err != nil {
-				return
-			}
-			q := originUrl.Query()
-			q.Set("IsPlayback", "true")
-			q.Set("AutoOpenLiveStream", "true")
-			originUrl.RawQuery = q.Encode()
-			resp, err := https.Post(originUrl.String()).Body(io.NopCloser(bytes.NewBufferString(PlaybackCommonPayload))).Do()
-			if err != nil {
-				return
-			}
-			resp.Body.Close()
-		}()
+		// go func() {
+		// 	// logs.Success("异步发送一个播放 Playback 请求, 触发 emby 解析 strm 视频格式, embyHost: %s, playbackInfoUri: %s", config.C.Emby.Host, itemInfo.PlaybackInfoUri)
+		// 	originUrl, err := url.Parse(config.C.Emby.Host + itemInfo.PlaybackInfoUri)
+		// 	logs.Success("异步发送一个播放 Playback 请求, 触发 emby 解析 strm 视频格式: %s", originUrl.String())
+		// 	if err != nil {
+		// 		return
+		// 	}
+		// 	q := originUrl.Query()
+		// 	q.Set("IsPlayback", "true")
+		// 	q.Set("AutoOpenLiveStream", "true")
+		// 	originUrl.RawQuery = q.Encode()
+		// 	resp, err := https.Post(originUrl.String()).Body(io.NopCloser(bytes.NewBufferString(PlaybackCommonPayload))).Do()
+		// 	if err != nil {
+		// 		return
+		// 	}
+		// 	resp.Body.Close()
+		// }()
 		// finalPath := config.C.Emby.Strm.MapPath(strmUrl)
 		finalPath := getFinalRedirectLink(strmUrl, c.Request.Header.Clone())
 		logs.Success("重定向 strm: %s", finalPath)

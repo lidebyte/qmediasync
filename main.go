@@ -11,12 +11,14 @@ import (
 	"Q115-STRM/internal/helpers"
 	"Q115-STRM/internal/models"
 	"Q115-STRM/internal/synccron"
+	"Q115-STRM/internal/v115open"
 	"context"
 	_ "embed"
 	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -30,11 +32,16 @@ import (
 
 var Version string = "v0.0.1"
 var PublishDate string = "2025-08-08"
+var FANART_API_KEY = ""
+var DEFAULT_TMDB_ACCESS_TOKEN = ""
+var DEFAULT_TMDB_API_KEY = ""
+var DEFAULT_SC_API_KEY = ""
+
+var AppName string = "QMediaSync"
 var QMSApp *App
 
 type App struct {
 	isRelease   bool
-	rootDir     string
 	dbManager   *database.Manager
 	config      *dbConfig.Config
 	httpServer  *http.Server
@@ -46,15 +53,17 @@ type App struct {
 func (app *App) Start() {
 	// 启动外网302服务
 	StartEmby302()
-	// if helpers.IsRelease {
-	gin.SetMode(gin.ReleaseMode)
-	// }
+	if helpers.IsRelease {
+		gin.SetMode(gin.ReleaseMode)
+	}
 	r := gin.New()
 	r.Use(controllers.Cors())
 	setRouter(r)
 	app.StartHttpServer(r)
 	app.StartHttpsServer(r)
-
+	go func() {
+		http.ListenAndServe(":12330", nil)
+	}()
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
@@ -66,14 +75,18 @@ func (app *App) Start() {
 }
 
 func (app *App) Stop() {
-	helpers.CloseLogger() // 关闭日志
+	// 关闭同步任务执行队列
+	synccron.PauseAllNewSyncQueues()
 	// 关闭上传下载队列
 	models.GlobalDownloadQueue.Stop()
 	models.GlobalUploadQueue.Stop()
+	// 关闭定时任务
+	synccron.GlobalCron.Stop()
 	// 关闭数据库
 	if app.dbManager != nil {
 		app.dbManager.Stop()
 	}
+	helpers.CloseLogger() // 关闭日志
 	if app.httpServer != nil {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
@@ -168,7 +181,7 @@ func (app *App) StartDatabase() error {
 	if err := app.dbManager.Start(ctx); err != nil {
 		return err
 	}
-	db.InitDb(app.dbManager.GetDB())
+	db.InitPostgres(app.dbManager.GetDB())
 	// 设置全局管理器引用供其他包使用
 	db.Manager = app.dbManager
 	// 开始数据库版本维护
@@ -176,7 +189,52 @@ func (app *App) StartDatabase() error {
 	return nil
 }
 
-func NewApp(rootDir string) {
+func (app *App) migratePostgresToDataDir() {
+	if runtime.GOOS != "windows" {
+		return
+	}
+
+	destDir := helpers.DataDir
+	isInit := true
+	if helpers.PathExists(destDir) {
+		// 检查是否为空目录
+		entries, err := os.ReadDir(destDir)
+		if err != nil || len(entries) > 0 {
+			isInit = true
+		} else {
+			isInit = false
+		}
+	}
+	if isInit {
+		return
+	}
+	helpers.AppLogger.Infof("检测到数据目录 %s 不存在，正在将嵌入式PostgreSQL迁移到用户数据目录中...", destDir)
+	srcDir := filepath.Join(helpers.RootDir, "postgres")
+	err := helpers.CopyDir(srcDir, destDir)
+	if err != nil {
+		helpers.AppLogger.Errorf("迁移嵌入式PostgreSQL到用户数据目录失败: %v", err)
+		panic("数据库安装失败，请检查日志")
+	}
+	helpers.AppLogger.Infof("嵌入式PostgreSQL数据迁移到用户数据目录完成")
+	// 检查是否要将config/postgres/data目录下的文件迁移到的用户数据目录
+	// 检查config/postgres/data目录是否存在
+	configDataDir := filepath.Join(helpers.ConfigDir, "postgres", "data")
+	if helpers.PathExists(configDataDir) {
+		// 检查是否为空
+		entries, err := os.ReadDir(configDataDir)
+		if err == nil && len(entries) > 0 {
+			helpers.AppLogger.Infof("检测到旧的数据库数据目录 %s 不为空，正在迁移数据到用户数据目录中...", configDataDir)
+			err := helpers.CopyDir(configDataDir, destDir)
+			if err != nil {
+				helpers.AppLogger.Errorf("迁移旧的数据库数据到用户数据目录失败: %v", err)
+				panic("数据库安装失败，请检查日志")
+			}
+			helpers.AppLogger.Infof("旧的数据库数据迁移到用户数据目录完成")
+		}
+	}
+}
+
+func NewApp() {
 	if QMSApp != nil {
 		log.Println("App already initialized")
 		return
@@ -184,11 +242,12 @@ func NewApp(rootDir string) {
 	// 初始化APP
 	QMSApp = &App{
 		isRelease:   helpers.IsRelease,
-		rootDir:     helpers.RootDir,
 		version:     Version,
 		publishDate: PublishDate,
 	}
-	QMSApp.config = dbConfig.Load(rootDir)
+	// 检查是否需要将postgres部署到用户数据目录
+	QMSApp.migratePostgresToDataDir()
+	QMSApp.config = dbConfig.Load()
 }
 
 func initTimeZone() {
@@ -207,7 +266,7 @@ func CheckRelease() {
 	helpers.IsRelease = strings.Index(name, "qmediasync") == 0 && !strings.Contains(arg1, "go-build")
 }
 
-func GetRootDir() string {
+func getRootDir() string {
 	var exPath string = "/app" // 默认使用docker的路径
 	CheckRelease()
 	if helpers.IsRelease {
@@ -227,11 +286,43 @@ func GetRootDir() string {
 	return exPath
 }
 
+// 获取用户数据目录
+func getDataAndConfigDir() {
+	var appData string
+	var dataDir string
+	var configDir string
+	if runtime.GOOS == "windows" {
+		// 使用AppData目录，用户有完全控制权限
+		appData := os.Getenv("LOCALAPPDATA")
+		if appData == "" {
+			appData = os.Getenv("APPDATA")
+		}
+		dataDir = filepath.Join(appData, AppName, "postgres")
+		configDir = filepath.Join(appData, AppName, "config")
+	} else {
+		appData = helpers.RootDir
+		configDir = filepath.Join(appData, "config")
+		dataDir = filepath.Join(configDir, "postgres")
+	}
+	err := os.MkdirAll(dataDir, 0755)
+	if err != nil {
+		fmt.Printf("创建数据目录失败: %v\n", err)
+		panic("创建数据目录失败")
+	}
+	err = os.MkdirAll(configDir, 0755)
+	if err != nil {
+		fmt.Printf("创建配置目录失败: %v\n", err)
+		panic("创建配置目录失败")
+	}
+	helpers.DataDir = dataDir
+	helpers.ConfigDir = configDir
+}
+
 //go:embed emby302.yml
 var s string
 
 func StartEmby302() {
-	dataRoot := filepath.Join(helpers.RootDir, "config")
+	dataRoot := helpers.ConfigDir
 	if err := config.ReadFromFile([]byte(s)); err != nil {
 		log.Fatal(err)
 	}
@@ -241,8 +332,8 @@ func StartEmby302() {
 	}
 	config.C.Emby.Host = models.GlobalEmbyConfig.EmbyUrl
 	config.C.Emby.EpisodesUnplayPrior = false // 关闭剧集排序
-	certFile := filepath.Join(helpers.RootDir, "config", "server.crt")
-	keyFile := filepath.Join(helpers.RootDir, "config", "server.key")
+	certFile := filepath.Join(dataRoot, "server.crt")
+	keyFile := filepath.Join(dataRoot, "server.key")
 	if helpers.PathExists(certFile) && helpers.PathExists(keyFile) {
 		config.C.Ssl.Enable = true
 		config.C.Ssl.SinglePort = false
@@ -262,7 +353,7 @@ func StartEmby302() {
 }
 
 func InitLogger() {
-	logPath := filepath.Join(helpers.RootDir, "config", "logs")
+	logPath := filepath.Join(helpers.ConfigDir, "logs")
 	os.MkdirAll(logPath, 0755) // 如果没有logs目录则创建
 	libLogPath := filepath.Join(logPath, "libs")
 	os.MkdirAll(libLogPath, 0755) // 如果没有logs/libs目录则创建
@@ -273,21 +364,42 @@ func InitLogger() {
 }
 
 func InitOthers() {
-	helpers.InitEventBus()           // 初始化事件总线
-	models.LoadSettings()            // 从数据库加载设置
+	helpers.InitEventBus() // 初始化事件总线
+	models.LoadSettings()  // 从数据库加载设置
+	helpers.AppLogger.Infof("已加载配置，准备初始化115请求队列，线程数: %d", models.SettingsGlobal.FileDetailThreads)
+	qps := models.SettingsGlobal.FileDetailThreads
+	if qps <= 0 {
+		qps = 3
+	}
+	v115open.SetGlobalExecutorConfig(qps, qps*60, qps*3600)
 	models.LoadScrapeSettings()      // 从数据库加载刮削设置
 	models.InitDQ()                  // 初始化下载队列
 	models.InitUQ()                  // 初始化上传队列
 	models.InitNotificationManager() // 初始化通知管理器
 	models.GetEmbyConfig()           // 加载Emby配置
-	// helpers.SubscribeSync(helpers.Save115TokenEvent, models.HandleOpen115TokenSaveSync)
 	helpers.SubscribeSync(helpers.V115TokenInValidEvent, models.HandleV115TokenInvalid)
 	helpers.SubscribeSync(helpers.SaveOpenListTokenEvent, models.HandleOpenListTokenSaveSync)
 	models.FailAllRunningSyncTasks() // 将所有运行中的同步任务设置为失败状态
 	synccron.Refresh115AccessToken() // 启动时刷新一次115的访问凭证，防止有过期的token导致同步失败
-	// 清理应用启动时的未完成备份任务
-	cleanupIncompleteBackupTasks()
+
+	// 设置115请求队列的统计保存回调函数
+	v115open.SetGlobalExecutorStatSaver(func(requestTime int64, url, method string, duration int64, isThrottled bool) {
+		stat := &models.RequestStat{
+			RequestTime: requestTime,
+			URL:         url,
+			Method:      method,
+			Duration:    duration,
+			IsThrottled: isThrottled,
+			AccountID:   0, // 可以后续扩展传入账号ID
+		}
+		if err := models.CreateRequestStat(stat); err != nil {
+			helpers.V115Log.Errorf("写入请求统计失败: %v", err)
+		}
+	})
+
 	// if helpers.IsRelease {
+	// 启动同步任务队列管理器
+	synccron.InitNewSyncQueueManager()
 	synccron.InitCron() // 初始化定时任务
 	// }
 	// 将所有刮削中和整理中的记录改为未执行
@@ -310,6 +422,7 @@ func setRouter(r *gin.Engine) {
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(200, "index.html", gin.H{})
 	})
+	r.GET("/path/list", controllers.GetPathList) // 路径列表接口
 	r.POST("/emby/webhook", controllers.Webhook)
 	r.POST("/api/login", controllers.LoginAction)
 	r.GET("/115/url/*filename", controllers.Get115UrlByPickCode) // 查询115直链 by pickcode 支持iso，路径最后一部分是.扩展名格式
@@ -322,6 +435,7 @@ func setRouter(r *gin.Engine) {
 	r.GET("/api/logs/ws", controllers.LogWebSocket)                      // WebSocket日志查看
 	r.GET("/api/logs/old", controllers.GetOldLogs)                       // HTTP获取旧日志
 	r.GET("/api/logs/download", controllers.DownloadLogFile)             // 下载日志文件
+
 	api := r.Group("/api")
 	api.Use(controllers.JWTAuthMiddleware())
 	{
@@ -333,12 +447,20 @@ func setRouter(r *gin.Engine) {
 				"isRelease": helpers.IsRelease,
 			})
 		})
-		api.GET("/update/last", controllers.GetLastRelease)         // 获取最新版本
-		api.POST("/update/to-version", controllers.UpdateToVersion) // 获取更新版本
-		api.GET("/update/progress", controllers.UpdateProgress)     // 获取更新进度
-		api.POST("/update/cancel", controllers.CancelUpdate)        // 取消更新
+		api.GET("/115/oauth-url", controllers.GetOAuthUrl)               // 获取115 OAuth登录地址
+		api.POST("115/oauth-confirm", controllers.ConfirmOAuthCode)      // 确认OAuth登录
+		api.GET("/115/queue/stats", controllers.GetQueueStats)           // 获取115 OpenAPI请求队列统计数据
+		api.POST("/115/queue/rate-limit", controllers.SetQueueRateLimit) // 设置115 OpenAPI请求队列速率限制
+		api.GET("/115/stats/daily", controllers.GetRequestStatsByDay)    // 获取115请求统计（按天）
+		api.GET("/115/stats/hourly", controllers.GetRequestStatsByHour)  // 获取115请求统计（按小时）
+		api.POST("/115/stats/clean", controllers.CleanOldRequestStats)   // 清理旧的请求统计数据
+		api.GET("/update/last", controllers.GetLastRelease)              // 获取最新版本
+		api.POST("/update/to-version", controllers.UpdateToVersion)      // 获取更新版本
+		api.GET("/update/progress", controllers.UpdateProgress)          // 获取更新进度
+		api.POST("/update/cancel", controllers.CancelUpdate)             // 取消更新
 		api.GET("/user/info", controllers.GetUserInfo)
 		api.GET("/path/list", controllers.GetPathList)
+		api.GET("/path/files", controllers.GetNetFileList) // 查询网盘文件列表
 		api.POST("/user/change", controllers.ChangePassword)
 		api.GET("/auth/115-status", controllers.Get115Status)                                      // 查询115状态
 		api.POST("/auth/115-qrcode-open", controllers.GetLoginQrCodeOpen)                          // 获取115开放平台登录二维码
@@ -379,11 +501,7 @@ func setRouter(r *gin.Engine) {
 		api.POST("/setting/threads", controllers.UpdateThreads)                                    // 更新线程数
 		api.GET("/setting/threads", controllers.GetThreads)                                        // 获取线程数
 		api.POST("/emby/sync/start", controllers.StartEmbySync)                                    // 手动启动Emby同步
-		api.GET("/emby/sync/status", controllers.GetEmbySyncStatus)                                // 获取Emby同步状态
-		api.GET("/emby/media", controllers.GetEmbyMediaItems)                                      // 分页获取Emby媒体项
-		api.GET("/emby/library-sync-paths", controllers.GetEmbyLibrarySyncPaths)                   // 获取媒体库与同步目录关联
-		api.POST("/emby/library-sync-paths", controllers.UpdateEmbyLibrarySyncPath)                // 更新媒体库与同步目录关联
-		api.DELETE("/emby/library-sync-paths", controllers.DeleteEmbyLibrarySyncPath)              // 删除媒体库与同步目录关联
+		api.GET("/emby/sync/status", controllers.GetEmbySyncStatus)                                // 获取Emby同步状态           // 删除媒体库与同步目录关联
 		api.POST("/sync/start", controllers.StartSync)                                             // 启动同步
 		api.GET("/sync/records", controllers.GetSyncRecords)                                       // 同步列表
 		api.GET("/sync/task", controllers.GetSyncTask)                                             // 获取同步任务详情
@@ -444,6 +562,7 @@ func setRouter(r *gin.Engine) {
 		api.POST("/upload/queue/stop", controllers.StopUploadQueue)                                  // 停止上传队列
 		api.GET("/upload/queue/status", controllers.UploadQueueStatus)                               // 查询上传队列状态
 		api.POST("/upload/queue/clear-success-failed", controllers.ClearUploadSuccessAndFailedTasks) // 清除上传队列中已完成和失败的任务
+		api.POST("/upload/queue/retry-failed", controllers.RetryFailedUploadTasks)                   // 重试所有失败的上传任务
 
 		api.GET("/download/queue", controllers.DownloadList)                                             // 获取下载队列列表
 		api.POST("/download/queue/clear-pending", controllers.ClearPendingDownloadTasks)                 // 清除下载队列中未开始的任务
@@ -472,15 +591,22 @@ func Init() {
 	// 将版本写入helper
 	helpers.Version = Version
 	helpers.ReleaseDate = PublishDate
+	helpers.DEFAULT_SC_API_KEY = DEFAULT_SC_API_KEY
+	helpers.DEFAULT_TMDB_API_KEY = DEFAULT_TMDB_API_KEY
+	helpers.DEFAULT_TMDB_ACCESS_TOKEN = DEFAULT_TMDB_ACCESS_TOKEN
+	helpers.FANART_API_KEY = FANART_API_KEY
 	initTimeZone() // 设置东8区
-	GetRootDir()   // 获取当前工作目录
+	getRootDir()   // 获取当前工作目录
+	getDataAndConfigDir()
 	fmt.Printf("当前工作目录:%s\n", helpers.RootDir)
+	fmt.Printf("当前数据目录：%s\n", helpers.DataDir)
+	fmt.Printf("当前配置文件目录: %s\n", helpers.ConfigDir)
 	ipv4, _ := helpers.GetLocalIP()
 	fmt.Printf("本机IPv4地址是 <%s>\n", ipv4)
 	helpers.InitConfig() // 初始化配置文件
 	InitLogger()
 	// 创建App
-	NewApp(helpers.RootDir)
+	NewApp()
 	helpers.AppLogger.Infof("当前版本号:%s, 发布日期:%s\n", Version, PublishDate)
 	if err := QMSApp.StartDatabase(); err != nil {
 		log.Println("数据库启动失败:", err)
@@ -514,62 +640,32 @@ func ParseParams() {
 	}
 }
 
+// @title QMediaSync API
+// @version 1.0
+// @description 媒体同步和刮削系统API
+// @host localhost:8115
+// @BasePath /
+// @securityDefinitions.apikey JwtAuth
+// @in header
+// @name Authorization
+// @securityDefinitions.apikey ApiKeyAuth
+// @in query
+// @name api_key
 func main() {
+	getRootDir()
+	helpers.LoadEnvFromFile(filepath.Join(helpers.RootDir, "config", ".env"))
 	ParseParams()
 	Init()
 	if runtime.GOOS == "windows" {
-		go QMSApp.Start()
-		helpers.StartApp(func() {
-			QMSApp.Stop()
-		})
+		if helpers.IsRelease {
+			go QMSApp.Start()
+			helpers.StartApp(func() {
+				QMSApp.Stop()
+			})
+		} else {
+			QMSApp.Start()
+		}
 	} else {
 		QMSApp.Start()
-	}
-}
-
-// cleanupIncompleteBackupTasks 清理应用启动时的未完成备份任务
-func cleanupIncompleteBackupTasks() {
-	// 查找所有未完成的备份任务
-	var tasks []*models.BackupTask
-	if err := db.Db.Where("status = ?", "running").Find(&tasks).Error; err != nil {
-		helpers.AppLogger.Errorf("查询未完成的备份任务失败: %v", err)
-		return
-	}
-
-	for _, task := range tasks {
-		// 标记为失败
-		if err := db.Db.Model(task).Updates(map[string]interface{}{
-			"status":         "failed",
-			"end_time":       time.Now().Unix(),
-			"failure_reason": "应用重启导致任务中断",
-		}).Error; err != nil {
-			helpers.AppLogger.Errorf("更新备份任务状态失败: %v", err)
-		}
-
-		// 清理临时文件
-		if task.FilePath != "" {
-			config := &models.BackupConfig{}
-			db.Db.First(config)
-			if config.ID > 0 {
-				backupDir := filepath.Join(helpers.RootDir, config.BackupPath)
-				os.Remove(filepath.Join(backupDir, task.FilePath))
-				os.Remove(filepath.Join(backupDir, task.FilePath+".gz"))
-			}
-		}
-
-		helpers.AppLogger.Infof("已清理未完成的备份任务，任务ID: %d", task.ID)
-	}
-
-	// 检查维护模式是否需要恢复
-	config := &models.BackupConfig{}
-	if err := db.Db.First(config).Error; err == nil {
-		if config.MaintenanceMode == 1 {
-			// 自动退出维护模式
-			db.Db.Model(config).Updates(map[string]interface{}{
-				"maintenance_mode":      0,
-				"maintenance_mode_time": 0,
-			})
-			helpers.AppLogger.Info("应用启动时已自动退出维护模式")
-		}
 	}
 }

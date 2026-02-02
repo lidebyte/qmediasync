@@ -107,33 +107,10 @@ func (m *Manager) Restore(ctx context.Context, backupPath string) error {
 	return m.impl.Restore(ctx, backupPath)
 }
 
-// 初始化数据库表结构
-func (m *Manager) InitSchema(ctx context.Context) error {
-	schema := `
-	CREATE TABLE IF NOT EXISTS users (
-		id SERIAL PRIMARY KEY,
-		username VARCHAR(50) UNIQUE NOT NULL,
-		email VARCHAR(100) UNIQUE NOT NULL,
-		created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-	);
-
-	CREATE TABLE IF NOT EXISTS app_config (
-		key VARCHAR(100) PRIMARY KEY,
-		value TEXT,
-		updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-	);
-
-	INSERT INTO app_config (key, value) VALUES 
-	('db_version', '1.0.0'),
-	('app_mode', '` + m.config.Mode + `')
-	ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value;
-	`
-
-	_, err := m.db.ExecContext(ctx, schema)
-	if err != nil {
-		return fmt.Errorf("初始化数据库表结构失败: %v", err)
+// GetMode 获取数据库模式
+func (m *Manager) GetMode() string {
+	if m.config == nil {
+		return ""
 	}
-
-	helpers.AppLogger.Info("数据库表结构初始化完成")
-	return nil
+	return m.config.Mode
 }

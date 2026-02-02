@@ -45,6 +45,17 @@ type updateInfo struct {
 
 var currentUpdateInfo *updateInfo
 
+// GetLastRelease 获取最新版本列表
+// @Summary 获取最新版本
+// @Description 获取GitHub上最新的5个稳定版本
+// @Tags 更新管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /update/last [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func GetLastRelease(c *gin.Context) {
 	releases := listReleases()
 	if releases == nil {
@@ -54,6 +65,18 @@ func GetLastRelease(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "获取最新版本成功", Data: releases})
 }
 
+// UpdateToVersion 更新到指定版本
+// @Summary 更新到指定版本
+// @Description 下载并安装指定版本的更新包
+// @Tags 更新管理
+// @Accept json
+// @Produce json
+// @Param version body string true "版本号"
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /update/to-version [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateToVersion(c *gin.Context) {
 	if currentUpdateInfo != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "正在更新中", Data: nil})
@@ -104,7 +127,7 @@ func UpdateToVersion(c *gin.Context) {
 			// currentUpdateInfo.ctx.Done()
 			currentUpdateInfo = nil
 		}()
-		updateFilePath := filepath.Join(helpers.RootDir, "config", "tmp")
+		updateFilePath := filepath.Join(helpers.ConfigDir, "tmp")
 		if helpers.PathExists(updateFilePath) {
 			os.MkdirAll(updateFilePath, 0777)
 		}
@@ -140,9 +163,9 @@ func UpdateToVersion(c *gin.Context) {
 		}
 		// 修改为安装中
 		currentUpdateInfo.Status = string(updateStatusInstall)
-		// 如果是windows, 解压到helpers.RootDir/update目录下
+		// 如果是windows, 解压到helpers.ConfigDir/update目录下
 		if runtime.GOOS == "windows" {
-			updateDestpath := filepath.Join(helpers.RootDir, "update")
+			updateDestpath := filepath.Join(helpers.ConfigDir, "update")
 			if helpers.PathExists(updateDestpath) {
 				os.RemoveAll(updateDestpath)
 			}
@@ -197,7 +220,7 @@ func UpdateToVersion(c *gin.Context) {
 			// 解压到updaet目录，然后将文件从qmediasync_GOOS_GOARCH目录下复制到udpate目录
 			helpers.ExtractTarGz(updateFilename, updateFilePath)
 			// 复制文件到update目录
-			srcPath := filepath.Join(helpers.RootDir, "config", "tmp", folerName)
+			srcPath := filepath.Join(helpers.ConfigDir, "tmp", folerName)
 			// 给srcPath/scripts下的所有脚本增加执行权限
 			scriptsPath := filepath.Join(srcPath, "scripts")
 			if helpers.PathExists(scriptsPath) {
@@ -225,7 +248,7 @@ func UpdateToVersion(c *gin.Context) {
 				os.Chmod(exeFile, 0777)
 			}
 
-			destFile := filepath.Join(helpers.RootDir, "config", "tmp", "qms.update.tar.gz")
+			destFile := filepath.Join(helpers.ConfigDir, "tmp", "qms.update.tar.gz")
 			if helpers.PathExists(destFile) {
 				os.Remove(destFile)
 			}
@@ -239,18 +262,18 @@ func UpdateToVersion(c *gin.Context) {
 				helpers.AppLogger.Infof("压缩包已创建: %s", destFile)
 			}
 			// 删除更新目录
-			updatePath := filepath.Join(helpers.RootDir, "update")
+			updatePath := filepath.Join(helpers.ConfigDir, "update")
 			if helpers.PathExists(updatePath) {
 				os.RemoveAll(updatePath)
 				helpers.AppLogger.Infof("已删除老的更新目录: %s", updatePath)
 			}
 			// 将文件移动到rootDir
-			err = helpers.CopyFile(destFile, filepath.Join(helpers.RootDir, "qms.update.tar.gz"))
+			err = helpers.CopyFile(destFile, filepath.Join(helpers.ConfigDir, "qms.update.tar.gz"))
 			if err != nil {
 				helpers.AppLogger.Errorf("移动文件失败: %v", err)
 			} else {
 				// 文件已移动到更新目录
-				helpers.AppLogger.Infof("文件已移动到更新目录: %s", filepath.Join(helpers.RootDir, "qms.update.tar.gz"))
+				helpers.AppLogger.Infof("文件已移动到更新目录: %s", filepath.Join(helpers.ConfigDir, "qms.update.tar.gz"))
 			}
 			// 删除解压目录
 			err = os.RemoveAll(srcPath)
@@ -283,6 +306,17 @@ func UpdateToVersion(c *gin.Context) {
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "更新开始", Data: currentUpdateInfo})
 }
 
+// UpdateProgress 获取更新进度
+// @Summary 获取更新进度
+// @Description 查询当前更新任务的下载和安装进度
+// @Tags 更新管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /update/progress [get]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func UpdateProgress(c *gin.Context) {
 	if currentUpdateInfo == nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "未开始更新", Data: nil})
@@ -292,6 +326,16 @@ func UpdateProgress(c *gin.Context) {
 }
 
 // CancelUpdate 取消更新
+// @Summary 取消更新
+// @Description 取消正在进行的更新任务
+// @Tags 更新管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} object
+// @Failure 200 {object} object
+// @Router /update/cancel [post]
+// @Security JwtAuth
+// @Security ApiKeyAuth
 func CancelUpdate(c *gin.Context) {
 	if currentUpdateInfo == nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "未开始更新", Data: nil})
