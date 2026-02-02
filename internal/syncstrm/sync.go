@@ -242,12 +242,21 @@ func (s *SyncStrm) Start() error {
 	s.Sync.NewUpload = int(s.NewUpload)
 	s.Sync.Total = int(s.TotalFile)
 	s.Sync.Complete()
+
 	if !s.TmpSyncPath {
 		// 有syncPathId,将IsFullSync改为false
 		if s.FullSync {
 			db.Db.Model(&models.SyncPath{}).Where("id = ?", s.SyncPathId).Update("is_full_sync", false)
 		}
 		db.Db.Model(&models.SyncPath{}).Where("id = ?", s.SyncPathId).Update("last_sync_at", s.Sync.FinishAt)
+		// 触发刷新Emby媒体库，延迟30s，等待文件下载完成
+		go func() {
+			time.Sleep(30 * time.Second)
+			if s.NewMeta > 0 || s.NewStrm > 0 {
+				s.Sync.Logger.Info("有新的元数据文件或STRM文件，触发刷新Emby媒体库，是否可以刷新受到 Emby设置 - STRM同步完成后刷新媒体库 选项是否开启的影响")
+				models.RefreshEmbyLibraryBySyncPathId(s.SyncPathId)
+			}
+		}()
 		// 处理差异
 		go func() {
 			s.Sync.Logger.Info("115路径和文件同步完成，开始处理SyncFile表和临时表的数据差异")
