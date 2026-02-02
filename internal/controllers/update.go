@@ -262,18 +262,22 @@ func UpdateToVersion(c *gin.Context) {
 				helpers.AppLogger.Infof("压缩包已创建: %s", destFile)
 			}
 			// 删除更新目录
-			updatePath := filepath.Join(helpers.ConfigDir, "update")
+			updatePath := filepath.Join(helpers.RootDir, "update")
 			if helpers.PathExists(updatePath) {
 				os.RemoveAll(updatePath)
 				helpers.AppLogger.Infof("已删除老的更新目录: %s", updatePath)
 			}
+			destGzFile := filepath.Join(helpers.RootDir, "qms.update.tar.gz")
+			if helpers.PathExists(destGzFile) {
+				os.Remove(destGzFile)
+			}
 			// 将文件移动到rootDir
-			err = helpers.CopyFile(destFile, filepath.Join(helpers.ConfigDir, "qms.update.tar.gz"))
+			err = helpers.CopyFile(destFile, destGzFile)
 			if err != nil {
 				helpers.AppLogger.Errorf("移动文件失败: %v", err)
 			} else {
 				// 文件已移动到更新目录
-				helpers.AppLogger.Infof("文件已移动到更新目录: %s", filepath.Join(helpers.ConfigDir, "qms.update.tar.gz"))
+				helpers.AppLogger.Infof("文件已移动到更新目录: %s", destGzFile)
 			}
 			// 删除解压目录
 			err = os.RemoveAll(srcPath)
