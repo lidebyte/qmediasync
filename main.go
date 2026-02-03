@@ -239,7 +239,7 @@ func (app *App) migratePostgresToDataDir() {
 
 func NewApp() {
 	if QMSApp != nil {
-		log.Println("App already initialized")
+		log.Println("App已经初始化，不能再次初始化")
 		return
 	}
 	// 初始化APP
@@ -280,7 +280,7 @@ func getRootDir() string {
 		exPath = filepath.Dir(ex)
 	} else {
 		if runtime.GOOS == "windows" {
-			exPath = "D:\\Dev\\q115-strm-go"
+			exPath = "D:\\Dev\\qmediasync"
 		} else {
 			exPath = "/home/qicfan/dev/q115-strm-go"
 		}

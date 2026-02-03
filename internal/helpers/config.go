@@ -82,13 +82,13 @@ func LoadEnvFromFile(envPath string) error {
 	f, err := os.Open(envPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			fmt.Printf("env file does not exist: %s\n", envPath)
+			fmt.Printf("环境变量配置文件不存在: %s\n", envPath)
 			return nil
 		}
 		return err
 	}
 	defer f.Close()
-
+	fmt.Printf("已加载环境变量配置文件：%s\n", envPath)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := scanner.Text()
