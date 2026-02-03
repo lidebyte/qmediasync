@@ -83,11 +83,11 @@ func NewSyncStrm(account *models.Account, syncPathId uint, sourcePath, sourcePat
 		syncDriver = NewLocalDriver()
 	}
 	pathWorkerMax := int64(models.SettingsGlobal.FileDetailThreads)
-	if account.SourceType != models.SourceType115 {
-		pathWorkerMax = 10 // 非115类型，限制为10个并发
+	if account.SourceType == models.SourceTypeLocal {
+		pathWorkerMax = 10 // 本地类型（CD2会自己限制并发），限制为10个并发
 	} else {
 		if pathWorkerMax == 1 {
-			pathWorkerMax = 2 // 最少为2
+			pathWorkerMax = 2 // 最少为2，否则errgroup递归会卡住
 		}
 	}
 
