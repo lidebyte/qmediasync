@@ -415,7 +415,6 @@ func (s *SyncStrm) compareLocalFilesWithTempTable() error {
 				existsFile, err := s.memSyncCache.GetByLocalPath(path)
 				if err != nil {
 					s.Sync.Logger.Errorf("查询同步缓存失败 %s: %v", path, err)
-					return nil
 				}
 				// s.Sync.Logger.Infof("对比本地文件 %s，是否存在于网盘: %v", path, existsFile)
 				if isVideo {
