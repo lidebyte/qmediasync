@@ -419,7 +419,7 @@ func LoadCacheItems(c *gin.Context) {
 	if err != nil {
 		return
 	}
-	logs.Info("itemInfo 解析结果: %s", itemInfo)
+	// logs.Info("itemInfo 解析结果: %s", itemInfo)
 
 	// coverMediaSources 解析 PlaybackInfo 中的 MediaSources 属性
 	// 并覆盖到当前请求的响应中

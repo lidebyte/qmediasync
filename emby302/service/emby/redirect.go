@@ -69,7 +69,7 @@ func Redirect2OpenlistLink(c *gin.Context) {
 	if checkErr(c, err) {
 		return
 	}
-	logs.Info("解析到的 itemInfo: %v", itemInfo)
+	// logs.Info("解析到的 itemInfo: %v", itemInfo)
 
 	// 2 如果请求的是转码资源, 重定向到本地的 m3u8 代理服务
 	msInfo := itemInfo.MsInfo
@@ -92,7 +92,7 @@ func Redirect2OpenlistLink(c *gin.Context) {
 		return
 	}
 
-	logs.Info("检查 %s 是否nfs协议的strm文件", embyPath)
+	// logs.Info("检查 %s 是否nfs协议的strm文件", embyPath)
 	strmUrl := ""
 	// nfs协议开头，说明是一个nfs文件路径，打开该路径读取strm内容，然后跳转到strm内的地址
 	if strings.HasPrefix(embyPath, "nfs:") && strings.HasSuffix(embyPath, ".strm") {

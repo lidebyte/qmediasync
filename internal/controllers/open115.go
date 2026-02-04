@@ -244,7 +244,7 @@ func Get115UrlByPickCode(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号ID不存在", Data: nil})
 			return
 		}
-		helpers.AppLogger.Infof("通过PickCode查询到115账号: %s", account.Username)
+		// helpers.AppLogger.Infof("通过PickCode查询到115账号: %s", account.Username)
 	} else {
 		var err error
 		// 通过userId查询账号
@@ -253,13 +253,13 @@ func Get115UrlByPickCode(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "用户ID不存在", Data: nil})
 			return
 		}
-		helpers.AppLogger.Infof("通过用户ID查询到115账号: %s", account.Username)
+		// helpers.AppLogger.Infof("通过用户ID查询到115账号: %s", account.Username)
 	}
 	ua := c.Request.UserAgent()
 	client := account.Get115Client()
-	helpers.AppLogger.Infof("检查是否具有直链播放标记， force=%d", req.Force)
+	// helpers.AppLogger.Infof("检查是否具有直链播放标记， force=%d", req.Force)
 	cacheKey := fmt.Sprintf("115url:%s, ua=%s", pickCode, ua)
-	helpers.AppLogger.Infof("准备获取115文件下载链接: pickcode=%s, ua=%s，8095播放=%d 加锁10秒", pickCode, ua, req.Force)
+	// helpers.AppLogger.Infof("准备获取115文件下载链接: pickcode=%s, ua=%s，8095播放=%d 加锁10秒", pickCode, ua, req.Force)
 	if keyLock.LockWithTimeout(cacheKey, 10*time.Second) {
 		defer keyLock.Unlock(cacheKey)
 		// helpers.AppLogger.Debugf("是否启用本地代理：%d", models.SettingsGlobal.LocalProxy)
