@@ -62,6 +62,18 @@ func (s *SyncStrm) RemoveFileAndCheckDirEmtry(filePath string) error {
 			return fmt.Errorf("删除空目录失败: %w", err)
 		} else {
 			s.Sync.Logger.Infof("删除空目录成功: %s", dir)
+			// 删除网盘目录
+			file, err := s.memSyncCache.GetByLocalPath(filePath)
+			if err != nil {
+				s.Sync.Logger.Warnf("查询空目录对应的网盘记录失败:  %s %w", filePath, err)
+				return nil
+			}
+			// 从同步缓存中删除
+			err = s.memSyncCache.DeleteByFileId(file.GetFileId())
+			if err != nil {
+				s.Sync.Logger.Warnf("删除空目录对应的网盘记录失败:  %s %w", file.GetFileId(), err)
+				return nil
+			}
 		}
 	}
 	return nil

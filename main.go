@@ -690,15 +690,13 @@ func main() {
 	ParseParams()
 	Init()
 	if runtime.GOOS == "windows" {
-		// if helpers.IsRelease {
-		go QMSApp.Start()
-		helpers.StartApp(func() {
-			QMSApp.Stop()
-		})
+		if helpers.IsRelease {
+			go QMSApp.Start()
+			helpers.StartApp(func() {
+				QMSApp.Stop()
+			})
+		}
 	} else {
 		QMSApp.Start()
 	}
-	// } else {
-	// 	QMSApp.Start()
-	// }
 }
