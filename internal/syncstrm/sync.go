@@ -532,6 +532,7 @@ func (s *SyncStrm) handleTempTableDiff() error {
 	limit := 1000
 	// 要删除的ID
 	waitDeleteIds := make([]uint, 0)
+	s.Sync.Logger.Infof("内存同步缓存中共有 %d 条数据，开始处理", s.memSyncCache.Count())
 	for {
 		var batch []models.SyncFile
 		err := db.Db.Where("sync_path_id = ?", s.SyncPathId).Offset(offset).Limit(limit).Order("id ASC").Find(&batch).Error

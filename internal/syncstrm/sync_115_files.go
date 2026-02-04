@@ -61,6 +61,7 @@ func (s *SyncStrm) process115FilePage(ctx context.Context, page, limit int) erro
 	}
 	// 处理查询到的文件
 	for _, file := range files {
+		s.Sync.Logger.Infof("文件 %s => %s 开始处理", file.FileId, file.FileName)
 		// 检查文件是否被排除
 		if s.IsExcludeName(file.FileName) {
 			s.Sync.Logger.Warnf("文件 %s 被排除", file.FileName)
@@ -111,6 +112,8 @@ func (s *SyncStrm) process115FilePage(ctx context.Context, page, limit int) erro
 		if syncFile.LocalFilePath != "" {
 			s.processNetFile(&syncFile)
 		}
+		s.Sync.Logger.Infof("文件 %s => %s 处理完成", syncFile.FileId, syncFile.FileName)
 	}
+	s.Sync.Logger.Infof("文件处理器处理完成offset=%d, limit=%d，共处理 %d 个文件", offset, limit, len(files))
 	return nil
 }
