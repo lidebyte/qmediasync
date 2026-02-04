@@ -135,7 +135,7 @@ func (s *SyncStrm) StartOther() {
 					Path:   fileItem.GetFullRemotePath(),
 					PathId: fileItem.GetFileId(),
 				}
-				s.Sync.Logger.Debugf("发现子目录 %s，准备放入路径队列继续处理", pathItem.Path, subPath.Path)
+				s.Sync.Logger.Debugf("发现子目录 %s，准备放入路径队列继续处理", subPath.Path)
 				enqueue(subPath)
 			} else {
 				// 处理文件
