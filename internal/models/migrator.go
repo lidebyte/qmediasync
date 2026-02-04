@@ -28,7 +28,7 @@ func (*Migrator) TableName() string {
 func Migrate() {
 	dbFile := filepath.Join(helpers.ConfigDir, helpers.GlobalConfig.Db.File)
 	sqliteDb := db.InitSqlite3(dbFile)
-	maxVersion := 21
+	maxVersion := 22
 	if sqliteDb != nil {
 		// 从sqlite迁移数据到postgres
 		moveSqliteToPostres(sqliteDb, maxVersion)
