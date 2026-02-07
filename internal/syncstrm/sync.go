@@ -196,6 +196,8 @@ func (s *SyncStrm) Start() error {
 	atomic.StoreInt64(&s.NewStrm, 0)
 	atomic.StoreInt64(&s.NewUpload, 0)
 	atomic.StoreInt64(&s.TotalFile, 0)
+	s.Sync.Logger.Infof("本次同步的入口目录：%s，目标目录：%s", s.SourcePath, s.TargetPath)
+	s.Sync.Logger.Infof("本次同步使用的STRM配置%+v", s.Config)
 	s.Sync.UpdateStatus(models.SyncStatusInProgress)
 	newPathId, err := s.SyncDriver.GetPathIdByPath(s.Context, s.SourcePath)
 	if err != nil {

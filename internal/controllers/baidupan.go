@@ -44,35 +44,34 @@ func GetBaiDuPanStatus(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "参数错误", Data: nil})
 		return
 	}
-	_, err := models.GetAccountById(req.AccountId)
+	account, err := models.GetAccountById(req.AccountId)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, APIResponse[any]{Code: BadRequest, Message: "账号ID不存在", Data: nil})
 		return
 	}
-	// TODO: 实现百度网盘客户端的UserInfo方法
-	// client := account.GetBaiDuPanClient()
-	// var resp BaiDuPanStatusResp
-	// // 获取用户信息
-	// userInfo, err := client.UserInfo()
-	// if err != nil {
-	// 	c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取百度网盘用户信息失败: " + err.Error(), Data: nil})
-	// 	return
-	// }
-	// resp.LoggedIn = true
-	// resp.UserId = json.Number(strconv.FormatUint(uint64(userInfo.UserId), 10))
-	// resp.Username = userInfo.Username
-	// resp.UsedSpace = userInfo.UsedSpace
-	// resp.TotalSpace = userInfo.TotalSpace
-	// resp.MemberLevel = userInfo.MemberLevel
-	// resp.ExpireTime = userInfo.ExpireTime
+	client := account.GetBaiDuPanClient()
+	userInfo, err := client.GetUserInfo(c.Request.Context())
+	if err != nil {
+		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "获取百度网盘用户信息失败: " + err.Error(), Data: nil})
+		return
+	}
+	var memberLevel string
+	switch userInfo.VipType {
+	case 1:
+		memberLevel = "普通会员"
+	case 2:
+		memberLevel = "超级会员"
+	default:
+		memberLevel = "非会员"
+	}
 	c.JSON(http.StatusOK, APIResponse[any]{Code: Success, Message: "成功", Data: BaiDuPanStatusResp{
 		LoggedIn:    true,
-		UserId:      json.Number("123456"),
-		Username:    "test_user",
-		UsedSpace:   1024 * 1024 * 1024,      // 1GB
-		TotalSpace:  10 * 1024 * 1024 * 1024, // 10GB
-		MemberLevel: "普通会员",
-		ExpireTime:  "2026-12-31",
+		UserId:      json.Number(userInfo.UserId),
+		Username:    userInfo.Username,
+		UsedSpace:   userInfo.Used,
+		TotalSpace:  userInfo.Quota,
+		MemberLevel: memberLevel,
+		ExpireTime:  "",
 	}})
 }
 
@@ -193,12 +192,12 @@ func ConfirmBaiDuPanOAuthCode(c *gin.Context) {
 	account.UpdateToken(data.AccessToken, data.RefreshToken, data.ExpiresIn)
 	// 调用接口获取百度用户信息
 	client := account.GetBaiDuPanClient()
-	userInfo, err := client.GetUserInfo()
+	userInfo, err := client.GetUserInfo(c.Request.Context())
 	if err != nil {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "确认OAuth登录失败: " + err.Error(), Data: nil})
 		return
 	}
-	rs := account.UpdateUser(string(userInfo.UserId), userInfo.UserName)
+	rs := account.UpdateUser(string(userInfo.UserId), userInfo.Username)
 	if !rs {
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "更新用户信息失败", Data: nil})
 		return
