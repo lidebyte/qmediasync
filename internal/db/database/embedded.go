@@ -71,6 +71,10 @@ func (m *EmbeddedManager) Stop() error {
 		}
 
 		cmd := exec.Command(pgctlPath, "stop", "-D", m.config.DataDir, "-m", "fast")
+		// --- 新增：隐藏退出时的黑框 ---
+		if runtime.GOOS == "windows" {
+			cmd.SysProcAttr = getSysProcAttr()
+		}
 		cmd.Run()
 
 		// 如果优雅停止失败，强制杀死进程
