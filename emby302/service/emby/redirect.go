@@ -114,25 +114,6 @@ func Redirect2OpenlistLink(c *gin.Context) {
 	isProxyUrl := ""
 	// 4 如果是远程地址 (strm) 且不包含qmediasync的本地代理播放链接, 重定向处理
 	if urls.IsRemote(strmUrl) || strings.HasPrefix(strmUrl, "http") || strings.HasPrefix(strmUrl, "nfs:") {
-		// 异步发送一个播放 Playback 请求, 触发 emby 解析 strm 视频格式
-		// go func() {
-		// 	// logs.Success("异步发送一个播放 Playback 请求, 触发 emby 解析 strm 视频格式, embyHost: %s, playbackInfoUri: %s", config.C.Emby.Host, itemInfo.PlaybackInfoUri)
-		// 	originUrl, err := url.Parse(config.C.Emby.Host + itemInfo.PlaybackInfoUri)
-		// 	logs.Success("异步发送一个播放 Playback 请求, 触发 emby 解析 strm 视频格式: %s", originUrl.String())
-		// 	if err != nil {
-		// 		return
-		// 	}
-		// 	q := originUrl.Query()
-		// 	q.Set("IsPlayback", "true")
-		// 	q.Set("AutoOpenLiveStream", "true")
-		// 	originUrl.RawQuery = q.Encode()
-		// 	resp, err := https.Post(originUrl.String()).Body(io.NopCloser(bytes.NewBufferString(PlaybackCommonPayload))).Do()
-		// 	if err != nil {
-		// 		return
-		// 	}
-		// 	resp.Body.Close()
-		// }()
-		// finalPath := config.C.Emby.Strm.MapPath(strmUrl)
 		finalPath := getFinalRedirectLink(strmUrl, c.Request.Header.Clone())
 		if !strings.Contains(finalPath, "/proxy-115") {
 			logs.Success("重定向 strm: %s", finalPath)
@@ -235,7 +216,7 @@ func ProxyOriginalResource(c *gin.Context) {
 	// 2. 以windows盘符开头, 正则匹配
 	pattern := `^[A-Za-z]:`
 	matchedWin, _ := regexp.MatchString(pattern, embyPath)
-	if strings.HasPrefix(embyPath, "/") || matchedWin {
+	if strings.HasPrefix(embyPath, "/") || matchedWin || !strings.Contains(embyPath, "/proxy-115") {
 		ProxyOrigin(c)
 		return
 	}
