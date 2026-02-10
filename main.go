@@ -581,6 +581,8 @@ func initEnv() bool {
 	} else {
 		helpers.ENCRYPTION_KEY = os.Getenv("ENCRYPTION_KEY")
 	}
+	// 加载环境变量配置
+	helpers.LoadEnvFromFile(filepath.Join(helpers.RootDir, "config", ".env"))
 	initTimeZone()        // 设置东8区
 	getRootDir()          // 获取当前工作目录
 	getDataAndConfigDir() // 获取数据库数据目录和配置文件目录

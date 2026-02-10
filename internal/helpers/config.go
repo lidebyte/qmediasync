@@ -144,9 +144,6 @@ func loadYaml(configPath string, cfg interface{}) error {
 
 func MakeOldConfig() error {
 	yamlConfig := MakeDefaultConfig()
-	if err := LoadEnvFromFile(filepath.Join(RootDir, "config", ".env")); err != nil {
-		return err
-	}
 	host := os.Getenv("DB_HOST")
 	if host != "" {
 		yamlConfig.Db.PostgresConfig.Host = host
