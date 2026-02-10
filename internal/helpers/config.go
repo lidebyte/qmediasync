@@ -87,7 +87,7 @@ var DEFAULT_SC_API_KEY = ""
 var ENCRYPTION_KEY = ""
 
 func InitConfig() error {
-	configPath := filepath.Join(ConfigDir, "config.yaml")
+	configPath := filepath.Join(ConfigDir, "config.yml")
 	// 从配置文件加载
 	if err := loadYaml(configPath, &GlobalConfig); err != nil {
 		return err
@@ -172,7 +172,7 @@ func MakeOldConfig() error {
 }
 
 func SaveConfig(config *Config) error {
-	configPath := filepath.Join(ConfigDir, "config.yaml")
+	configPath := filepath.Join(ConfigDir, "config.yml")
 	configData, err := yaml.Marshal(config)
 	if err != nil {
 		return err

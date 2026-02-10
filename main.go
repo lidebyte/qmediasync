@@ -590,7 +590,7 @@ func initEnv() bool {
 	ipv4, _ := helpers.GetLocalIP()
 	log.Printf("本机IPv4地址是 <%s>\n", ipv4)
 	// 检查配置文件是否存在
-	configPath := filepath.Join(helpers.ConfigDir, "config.yaml")
+	configPath := filepath.Join(helpers.ConfigDir, "config.yml")
 	helpers.IsFirstRun = !helpers.PathExists(configPath)
 	// 如果不存在，启动一个简易web服务来配置数据库连接信息
 	if helpers.IsFirstRun {
