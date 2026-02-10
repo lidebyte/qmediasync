@@ -58,8 +58,8 @@ func InitPostgres(dbConfig *database.Config) error {
 	// 配置连接池
 	sqlDB.SetMaxOpenConns(dbConfig.MaxOpenConns) // 最多打开25个连接
 	sqlDB.SetMaxIdleConns(dbConfig.MaxIdleConns) // 最多5个空闲连接
-	sqlDB.SetConnMaxLifetime(60 * time.Minute)   // 连接最多使用5分钟
-	sqlDB.SetConnMaxIdleTime(1 * time.Minute)    // 空闲超过10秒则关闭
+	sqlDB.SetConnMaxLifetime(60 * time.Minute)   // 连接最多使用60分钟
+	sqlDB.SetConnMaxIdleTime(1 * time.Minute)    // 空闲超过1分钟则关闭
 	var err error
 	Db, err = gorm.Open(postgres.New(postgres.Config{
 		Conn: sqlDB,
