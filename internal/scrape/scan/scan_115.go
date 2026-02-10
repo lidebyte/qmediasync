@@ -202,7 +202,7 @@ func (s *Scan115Impl) startPathWorkWithLimiter(workerID int) {
 					break pageloop
 				}
 			}
-			helpers.AppLogger.Infof("目录 %s 处理完成，%d 个视频文件，%d 个图片文件，%d 个nfo文件，%d 个字幕文件", parentPath, len(videoFiles), len(picFiles), len(nfoFiles), len(subFiles))
+
 			// 处理视频文件
 			verr := s.processVideoFile(parentPath, pathId, videoFiles, picFiles, nfoFiles, subFiles)
 			if verr != nil {
