@@ -3,6 +3,7 @@ package database
 import (
 	"Q115-STRM/internal/helpers"
 	"context"
+	"database/sql"
 	"fmt"
 	"os"
 	"os/exec"
@@ -31,6 +32,7 @@ type Config struct {
 
 type EmbeddedManager struct {
 	config       *Config
+	db           *sql.DB
 	process      *os.Process
 	userSwitcher *UserSwitcher
 	UserName     string
@@ -76,7 +78,8 @@ func (m *EmbeddedManager) Start(ctx context.Context) error {
 	if err := m.waitForPostgres(ctx); err != nil {
 		return err
 	}
-	return nil
+	// 连接数据库
+	return m.connectToDB()
 }
 
 func (m *EmbeddedManager) Stop() error {
@@ -385,4 +388,68 @@ func (m *EmbeddedManager) isMuslLibc() bool {
 	}
 
 	return strings.Contains(strings.ToLower(string(output)), "musl")
+}
+
+func (m *EmbeddedManager) connectToDB() error {
+	connStr := fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=postgres sslmode=%s",
+		m.config.Host, m.config.Port, m.config.User, m.config.Password, m.config.SSLMode)
+
+	db, err := sql.Open("postgres", connStr)
+	if err != nil {
+		return fmt.Errorf("连接数据库失败: %v", err)
+	}
+
+	// 测试连接
+	if derr := db.Ping(); derr != nil {
+		db.Close()
+		return fmt.Errorf("数据库连接测试失败: %v", derr)
+	}
+
+	m.db = db
+
+	// 创建应用数据库
+	if cerr := m.createAppDatabase(); cerr != nil {
+		return cerr
+	}
+
+	// 重新连接到应用数据库
+	connStr = fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		m.config.Host, m.config.Port, m.config.User, m.config.Password, m.config.DBName, m.config.SSLMode)
+
+	db, err = sql.Open("postgres", connStr)
+	if err != nil {
+		return fmt.Errorf("连接到应用数据库失败: %v", err)
+	}
+
+	m.db = db
+	helpers.AppLogger.Info("成功连接到嵌入式数据库")
+
+	return nil
+}
+
+func (m *EmbeddedManager) createAppDatabase() error {
+	var exists bool
+	err := m.db.QueryRow(`
+		SELECT EXISTS(
+			SELECT 1 FROM pg_database WHERE datname = $1
+		)`, m.config.DBName).Scan(&exists)
+
+	if err != nil {
+		return fmt.Errorf("检查数据库存在性失败: %v", err)
+	}
+
+	if !exists {
+		helpers.AppLogger.Infof("创建数据库: %s", m.config.DBName)
+		_, err = m.db.Exec(fmt.Sprintf("CREATE DATABASE %s", m.config.DBName))
+		if err != nil {
+			helpers.AppLogger.Errorf("创建数据库失败: %v\n", err)
+		}
+		helpers.AppLogger.Info("数据库创建成功")
+	}
+
+	return nil
+}
+
+func (m *EmbeddedManager) GetDB() *sql.DB {
+	return m.db
 }

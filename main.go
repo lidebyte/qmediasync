@@ -199,11 +199,14 @@ func (app *App) StartDatabase() error {
 		if err := app.dbManager.Start(ctx); err != nil {
 			return err
 		}
+		db.InitPostgres(app.dbManager.GetDB())
+	} else {
+		// 初始化PostgreSQL数据库连接
+		if err := db.ConnectPostgres(dbConfig); err != nil {
+			return err
+		}
 	}
-	// 初始化PostgreSQL数据库连接
-	if err := db.InitPostgres(dbConfig); err != nil {
-		return err
-	}
+
 	return nil
 }
 

@@ -34,8 +34,8 @@ func InitSqlite3(dbFile string) *gorm.DB {
 	return sqliteDb
 }
 
-// 连接PostgreSQL数据库
-func InitPostgres(dbConfig *database.Config) error {
+// 连接外部PostgreSQL数据库
+func ConnectPostgres(dbConfig *database.Config) error {
 	// 配置Logger
 	newLogger := logger.New(
 		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
@@ -74,6 +74,34 @@ func InitPostgres(dbConfig *database.Config) error {
 	return nil
 }
 
+func InitPostgres(sqlDB *sql.DB) {
+	// 配置Logger
+	newLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags), // io writer
+		logger.Config{
+			SlowThreshold:             200 * time.Millisecond, // 慢SQL阈值
+			LogLevel:                  logger.Warn,            // 日志级别
+			IgnoreRecordNotFoundError: true,                   // 忽略ErrRecordNotFound（记录未找到）错误
+			Colorful:                  true,                   // 禁用彩色打印
+		},
+	)
+	// 配置连接池
+	sqlDB.SetMaxOpenConns(25)                  // 最多打开25个连接
+	sqlDB.SetMaxIdleConns(5)                   // 最多5个空闲连接
+	sqlDB.SetConnMaxLifetime(60 * time.Minute) // 连接最多使用5分钟
+	sqlDB.SetConnMaxIdleTime(1 * time.Minute)  // 空闲超过10秒则关闭
+	var err error
+	Db, err = gorm.Open(postgres.New(postgres.Config{
+		Conn: sqlDB,
+	}), &gorm.Config{})
+	if err != nil {
+		panic(fmt.Sprintf("failed to connect database: %v", err))
+	}
+	// 设置全局Logger
+	Db.Logger = newLogger
+	helpers.AppLogger.Info("成功初始化数据库组件")
+}
+
 // IsPostgres 判断当前使用的是否为PostgreSQL数据库
 func IsPostgres() bool {
 	return helpers.GlobalConfig.Db.Engine == helpers.DbEnginePostgres
@@ -96,26 +124,6 @@ func GetPostgresBinaryPath(embeddedBasePath string) string {
 		return ""
 	}
 	return binDir
-}
-
-func createAppDatabase() error {
-	var exists bool
-	err := Db.Raw("SELECT EXISTS(SELECT 1 FROM pg_database WHERE datname = ?)", helpers.GlobalConfig.Db.PostgresConfig.Database).Scan(&exists)
-
-	if err != nil {
-		return fmt.Errorf("检查数据库存在性失败: %v", err)
-	}
-
-	if !exists {
-		helpers.AppLogger.Infof("创建数据库: %s", helpers.GlobalConfig.Db.PostgresConfig.Database)
-		err = Db.Exec(fmt.Sprintf("CREATE DATABASE %s", helpers.GlobalConfig.Db.PostgresConfig.Database))
-		if err != nil {
-			helpers.AppLogger.Errorf("创建数据库失败: %v\n", err)
-		}
-		helpers.AppLogger.Info("数据库创建成功")
-	}
-
-	return nil
 }
 
 // func ClearDbLock(configRootPath string) {
