@@ -6,7 +6,6 @@ import (
 	"Q115-STRM/emby302/web"
 	"Q115-STRM/internal/controllers"
 	"Q115-STRM/internal/db"
-	dbConfig "Q115-STRM/internal/db/config"
 	"Q115-STRM/internal/db/database"
 	"Q115-STRM/internal/helpers"
 	"Q115-STRM/internal/models"
@@ -44,7 +43,7 @@ var QMSApp *App
 
 type App struct {
 	isRelease   bool
-	dbManager   *database.Manager
+	dbManager   *database.EmbeddedManager
 	httpServer  *http.Server
 	httpsServer *http.Server
 	version     string
@@ -69,11 +68,20 @@ func (app *App) Start() {
 	// 	helpers.AppLogger.Infof("QMediaSync 启动完成，现在可以关闭终端窗口。如果要退出请在通知栏（右下角）找到QMediaSync图标右键退出。")
 	// }
 	if runtime.GOOS == "windows" {
+		// 监听Ctrl+C信号
+		go func() {
+			quit := make(chan os.Signal, 1)
+			signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+			<-quit
+			log.Println("收到Ctrl+C信号")
+			helpers.ExitChan <- struct{}{}
+		}()
 		<-helpers.ExitChan
 		log.Println("收到停止信号")
 		app.Stop()
 		close(helpers.ExitChan)
 		log.Println("应用程序正常退出")
+		return
 	} else {
 		quit := make(chan os.Signal, 1)
 		signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
@@ -156,16 +164,6 @@ func (app *App) StartHttpServer(r *gin.Engine) {
 	}()
 }
 
-func (a *App) getDBMode() string {
-	if helpers.GlobalConfig.Db.PostgresType == helpers.PostgresTypeExternal {
-		return "external"
-	}
-	// if a.config.App.Mode == "docker" || a.config.DB.External || runtime.GOOS == "linux" {
-	// 	return "external"
-	// }
-	return "embedded"
-}
-
 func (app *App) StartDatabase() error {
 	defer models.Migrate()
 	// 根据配置启动数据库连接
@@ -176,88 +174,38 @@ func (app *App) StartDatabase() error {
 		db.Db = db.InitSqlite3(sqliteFile)
 		return nil
 	}
-	if helpers.GlobalConfig.Db.PostgresType == helpers.PostgresTypeEmbedded {
-		// 如果是嵌入式postgres，检查是否需要迁移到用户数据目录
-		app.migratePostgresToDataDir()
-	}
-	config := dbConfig.Load()
-	// 初始化数据库管理器
+
+	// 初始化数据库配置
 	dbConfig := &database.Config{
-		Mode:         app.getDBMode(),
-		Host:         config.DB.Host,
-		Port:         config.DB.Port,
-		User:         config.DB.User,
-		Password:     config.DB.Password,
-		DBName:       config.DB.Name,
-		SSLMode:      config.DB.SSLMode,
-		LogDir:       config.DB.LogDir,
-		DataDir:      config.DB.DataDir,
-		BinaryPath:   config.DB.BinaryPath,
-		MaxOpenConns: config.DB.MaxOpenConns,
-		MaxIdleConns: config.DB.MaxIdleConns,
-		External:     helpers.GlobalConfig.Db.PostgresType == helpers.PostgresTypeExternal,
+		Mode:         helpers.GlobalConfig.Db.PostgresType,
+		Host:         helpers.GlobalConfig.Db.PostgresConfig.Host,
+		Port:         helpers.GlobalConfig.Db.PostgresConfig.Port,
+		User:         helpers.GlobalConfig.Db.PostgresConfig.User,
+		Password:     helpers.GlobalConfig.Db.PostgresConfig.Password,
+		DBName:       helpers.GlobalConfig.Db.PostgresConfig.Database,
+		SSLMode:      "disable",
+		LogDir:       filepath.Join(helpers.ConfigDir, "postgres", "log"),
+		DataDir:      filepath.Join(helpers.ConfigDir, "postgres", "data"),
+		BinaryPath:   db.GetPostgresBinaryPath(helpers.DataDir),
+		MaxOpenConns: helpers.GlobalConfig.Db.PostgresConfig.MaxOpenConns,
+		MaxIdleConns: helpers.GlobalConfig.Db.PostgresConfig.MaxIdleConns,
 	}
+	if dbConfig.Mode == helpers.PostgresTypeEmbedded {
+		// 如果使用内置数据库，则需要启动和初始化数据库
+		app.dbManager = database.NewEmbeddedManager(dbConfig)
+		// 启动数据库
+		ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+		defer cancel()
 
-	app.dbManager = database.NewManager(dbConfig)
-
-	// 启动数据库
-	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
-	defer cancel()
-
-	if err := app.dbManager.Start(ctx); err != nil {
+		if err := app.dbManager.Start(ctx); err != nil {
+			return err
+		}
+	}
+	// 初始化PostgreSQL数据库连接
+	if err := db.InitPostgres(dbConfig); err != nil {
 		return err
 	}
-	db.InitPostgres(app.dbManager.GetDB())
-	// 设置全局管理器引用供其他包使用
-	db.Manager = app.dbManager
 	return nil
-}
-
-func (app *App) migratePostgresToDataDir() {
-	if runtime.GOOS != "windows" {
-		return
-	}
-
-	destDir := helpers.DataDir
-	isInit := true
-	if helpers.PathExists(destDir) {
-		// 检查是否为空目录
-		entries, err := os.ReadDir(destDir)
-		if err != nil || len(entries) > 0 {
-			isInit = true
-		} else {
-			isInit = false
-		}
-	}
-	if isInit {
-		return
-	}
-	helpers.AppLogger.Infof("检测到数据目录 %s 不存在，正在将嵌入式PostgreSQL迁移到用户数据目录中...", destDir)
-	srcDir := filepath.Join(helpers.RootDir, "postgres")
-	err := helpers.CopyDir(srcDir, destDir)
-	if err != nil {
-		helpers.AppLogger.Errorf("迁移嵌入式PostgreSQL到用户数据目录失败: %v", err)
-		panic("数据库安装失败，请检查日志")
-	}
-	helpers.AppLogger.Infof("嵌入式PostgreSQL数据迁移到用户数据目录完成")
-	// 检查是否要将config/postgres/data目录下的文件迁移到的用户数据目录
-	// 检查config/postgres/data目录是否存在
-	// 迁移到%LOCALAPPDATA%\QMediaSync\postgres\data目录下
-	configDataDir := filepath.Join(helpers.RootDir, "config", "postgres", "data")
-	dataDestDir := filepath.Join(helpers.ConfigDir, "postgres", "data")
-	if helpers.PathExists(configDataDir) {
-		// 检查是否为空
-		entries, err := os.ReadDir(configDataDir)
-		if err == nil && len(entries) > 0 {
-			helpers.AppLogger.Infof("检测到旧的数据库数据目录 %s 不为空，正在迁移数据到用户数据目录中...", configDataDir)
-			err := helpers.CopyDir(configDataDir, dataDestDir)
-			if err != nil {
-				helpers.AppLogger.Errorf("迁移旧的数据库数据到用户数据目录失败: %v", err)
-				panic("数据库安装失败，请检查日志")
-			}
-			helpers.AppLogger.Infof("旧的数据库数据迁移到用户数据目录完成")
-		}
-	}
 }
 
 func newApp() {
@@ -601,18 +549,6 @@ func setRouter(r *gin.Engine) {
 		api.GET("/download/queue/status", controllers.DownloadQueueStatus)                               // 查询下载队列状态
 		api.POST("/download/queue/clear-success-failed", controllers.ClearDownloadSuccessAndFailedTasks) // 清除下载队列中已完成和失败的任务
 
-		// 数据库备份和恢复接口
-		api.GET("/database/backup-config", controllers.GetBackupConfig)            // 获取备份配置
-		api.POST("/database/backup-config", controllers.UpdateBackupConfig)        // 更新备份配置
-		api.POST("/database/backup/start", controllers.StartBackupTask)            // 启动备份任务
-		api.POST("/database/backup/cancel", controllers.CancelBackupTask)          // 取消备份任务
-		api.GET("/database/backup/progress", controllers.GetBackupProgress)        // 查询备份进度
-		api.POST("/database/restore", controllers.RestoreDatabase)                 // 恢复数据库
-		api.GET("/database/restore/progress", controllers.GetRestoreProgress)      // 查询恢复进度
-		api.GET("/database/backups", controllers.ListBackups)                      // 列出所有备份文件
-		api.DELETE("/database/backup", controllers.DeleteBackup)                   // 删除单个备份文件
-		api.POST("/database/backup-record/delete", controllers.DeleteBackupRecord) // 删除备份记录
-		api.GET("/database/backup-records", controllers.GetBackupRecords)          // 获取备份历史记录
 	}
 }
 
@@ -710,8 +646,8 @@ func parseParams() {
 			fmt.Printf("使用环境变量 GUID: %s 执行操作\n", guidEnv)
 			helpers.Guid = guidEnv
 		} else {
-			fmt.Printf("使用默认用户: qms (12333) 执行操作\n")
-			helpers.Guid = "12331"
+			fmt.Printf("使用 root 执行操作\n")
+			helpers.Guid = ""
 		}
 	}
 }
@@ -902,33 +838,35 @@ func StartConfigWebServer() {
 				"engine":     req.Engine,
 				"sqliteFile": "qmediasync.db",
 			},
-			"cacheSize":        20971520,
-			"jwtSecret":        "Q115-STRM-JWT-TOKEN-250706",
-			"httpHost":         ":12333",
-			"httpsHost":        ":12332",
-			"open115AppId":     "",
-			"open115TestAppId": "",
-			"authServer":       "https://api.mqfamily.top",
-			"baiDuPanAppId":    "QMediaSync",
+			"cacheSize":     20971520,
+			"jwtSecret":     "Q115-STRM-JWT-TOKEN-250706",
+			"httpHost":      ":12333",
+			"httpsHost":     ":12332",
+			"authServer":    "https://api.mqfamily.top",
+			"baiDuPanAppId": "QMediaSync",
 		}
 
 		if req.Engine == string(helpers.DbEnginePostgres) {
 			yamlConfig["db"].(map[string]interface{})["postgresType"] = req.PostgresType
 			if req.PostgresType == string(helpers.PostgresTypeExternal) {
 				yamlConfig["db"].(map[string]interface{})["postgresConfig"] = map[string]interface{}{
-					"host":     req.Host,
-					"port":     req.Port,
-					"user":     req.User,
-					"password": req.Password,
-					"database": req.Database,
+					"host":         req.Host,
+					"port":         req.Port,
+					"user":         req.User,
+					"password":     req.Password,
+					"database":     req.Database,
+					"maxOpenConns": 25,
+					"maxIdleConns": 25,
 				}
 			} else {
 				yamlConfig["db"].(map[string]interface{})["postgresConfig"] = map[string]interface{}{
-					"host":     "localhost",
-					"port":     5432,
-					"user":     "qms",
-					"password": "qms123456",
-					"database": "qms",
+					"host":         "localhost",
+					"port":         5432,
+					"user":         "qms",
+					"password":     "qms123456",
+					"database":     "qms",
+					"maxOpenConns": 25,
+					"maxIdleConns": 25,
 				}
 			}
 		}

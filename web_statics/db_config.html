@@ -13,7 +13,7 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: #f5f7fa;
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -55,19 +55,19 @@
 
         .btn {
             padding: 14px 24px;
-            border: none;
+            border: 1px solid #e0e0e0;
             border-radius: 8px;
             font-size: 16px;
             font-weight: 500;
             cursor: pointer;
             transition: all 0.3s;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
+            background: #ffffff;
+            color: #333;
         }
 
         .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            background: #f8f9fa;
+            border-color: #d0d0d0;
         }
 
         .btn:active {
@@ -76,10 +76,14 @@
 
         .btn-secondary {
             background: #6c757d;
+            color: white;
+            border-color: #6c757d;
         }
 
         .btn-back {
-            background: #6c757d;
+            background: #f8f9fa;
+            color: #666;
+            border-color: #e0e0e0;
             margin-right: 10px;
         }
 
@@ -187,9 +191,9 @@
             <p class="subtitle">请选择数据库引擎：</p>
             <div class="btn-group">
                 <button class="btn" onclick="selectEngine('sqlite')">SQLite</button>
-                <p style="font-size: 16px; color: #888; text-align: center; margin-top: -8px;">最简单的方案，无需配置，Windows 建议选择</p>
+                <p style="font-size: 16px; color: #333; text-align: center; margin-top: -8px;">最简单的方案，无需配置，Windows 建议选择。如果你看不懂这两个选项，一定选这个。</p>
                 <button class="btn" onclick="selectEngine('postgres')">PostgreSQL</button>
-                <p style="font-size: 16px; color: #888; text-align: center; margin-top: -8px;">需要启动一个独立的数据库服务器，可以使用内嵌版本或独立安装</p>
+                <p style="font-size: 16px; color: #333; text-align: center; margin-top: -8px;">需要启动一个独立的数据库服务器，可以使用内嵌版本或独立安装</p>
             </div>
         </div>
 
@@ -197,16 +201,16 @@
             <p class="subtitle">请选择 PostgreSQL 类型：</p>
             <div class="btn-group">
                 <button class="btn" onclick="selectPostgresType('embedded')">嵌入式 (Embedded)</button>
-                <p style="font-size: 16px; color: #888; text-align: center; margin-top: -8px;">只有 Windows 和 Docker 版本提供，使用 QMediaSync 内置的 PostgreSQL，无需自己安装</p>
+                <p style="font-size: 16px; color: #333; text-align: center; margin-top: -8px;">只有 Windows 和 Docker 版本提供，使用 QMediaSync 内置的 PostgreSQL，无需自己安装，但可能出现无法启动等问题</p>
                 <button class="btn" onclick="selectPostgresType('external')">外部连接 (External)</button>
-                <p style="font-size: 16px; color: #888; text-align: center; margin-top: -8px;">如果你有已经安装好的 Docker 和 PostgreSQL，请在下一个页面输入连接信息直接使用</p>
+                <p style="font-size: 16px; color: #333; text-align: center; margin-top: -8px;">如果你有已经安装好的 PostgreSQL，Docker容器或者直接安装或者远程服务器均可，请在下一个页面输入连接信息直接使用</p>
                 <button class="btn btn-back" onclick="goBack('engine')">返回</button>
             </div>
         </div>
 
         <div id="step-postgres-config" class="step">
             <p class="subtitle">请输入 PostgreSQL 外部连接信息：</p>
-            <p style="font-size: 16px; color: #888; text-align: center; margin-bottom: 20px;">请提前创建输入的数据库，并给输入的用户所有该库的权限</p>
+            <p style="font-size: 16px; color: #333; text-align: center; margin-bottom: 20px;">请提前创建输入的数据库，并给输入的用户所有该库的权限</p>
             <div class="form-group">
                 <label for="host">主机地址</label>
                 <input type="text" id="host" value="localhost">

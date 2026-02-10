@@ -231,19 +231,19 @@ func Migrate() {
 	if migrator.VersionCode == 11 {
 		// 将account表的AppId字段替换为AppIdName
 		// 查询所有Account
-		accounts := []Account{}
-		db.Db.Find(&accounts)
-		for _, account := range accounts {
-			appIdName := "自定义"
-			switch account.AppId {
-			case helpers.GlobalConfig.Open115AppId:
-				appIdName = "Q115-STRM"
-			case helpers.GlobalConfig.Open115TestAppId:
-				appIdName = "MQ的媒体库"
-			}
-			db.Db.Model(&Account{}).Where("id = ?", account.ID).Update("app_id", appIdName)
-			helpers.AppLogger.Infof("Account %d 的 AppId 字段已更新为 AppIdName：%s", account.ID, appIdName)
-		}
+		// accounts := []Account{}
+		// db.Db.Find(&accounts)
+		// for _, account := range accounts {
+		// appIdName := "自定义"
+		// 	switch account.AppId {
+		// 	case helpers.GlobalConfig.Open115AppId:
+		// 		appIdName = "Q115-STRM"
+		// 	case helpers.GlobalConfig.Open115TestAppId:
+		// 		appIdName = "MQ的媒体库"
+		// 	}
+		// 	db.Db.Model(&Account{}).Where("id = ?", account.ID).Update("app_id", appIdName)
+		// 	helpers.AppLogger.Infof("Account %d 的 AppId 字段已更新为 AppIdName：%s", account.ID, appIdName)
+		// }
 		migrator.UpdateVersionCode(db.Db)
 	}
 	if migrator.VersionCode == 12 {

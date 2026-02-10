@@ -39,11 +39,13 @@ type configLog struct {
 }
 
 type PostgresConfig struct {
-	Host     string `yaml:"host"`
-	Port     int    `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	Database string `yaml:"database"`
+	Host         string `yaml:"host"`
+	Port         int    `yaml:"port"`
+	User         string `yaml:"user"`
+	Password     string `yaml:"password"`
+	Database     string `yaml:"database"`
+	MaxOpenConns int    `yaml:"maxOpenConns"`
+	MaxIdleConns int    `yaml:"maxIdleConns"`
 }
 
 type configDb struct {
@@ -61,17 +63,15 @@ type configStrm struct {
 }
 
 type Config struct {
-	Log              configLog  `yaml:"log"`
-	Db               configDb   `yaml:"db"`
-	CacheSize        int        `yaml:"cacheSize"` // 数据库缓存大小，单位字节
-	JwtSecret        string     `yaml:"jwtSecret"`
-	HttpHost         string     `yaml:"httpHost"`  // HTTP主机地址
-	HttpsHost        string     `yaml:"httpsHost"` // HTTPS主机地址
-	Strm             configStrm `yaml:"strm"`
-	AuthServer       string     `yaml:"authServer"`
-	Open115AppId     string     `yaml:"open115AppId"`
-	Open115TestAppId string     `yaml:"open115TestAppId"`
-	BaiDuPanAppId    string     `yaml:"baiDuPanAppId"`
+	Log           configLog  `yaml:"log"`
+	Db            configDb   `yaml:"db"`
+	CacheSize     int        `yaml:"cacheSize"` // 数据库缓存大小，单位字节
+	JwtSecret     string     `yaml:"jwtSecret"`
+	HttpHost      string     `yaml:"httpHost"`  // HTTP主机地址
+	HttpsHost     string     `yaml:"httpsHost"` // HTTPS主机地址
+	Strm          configStrm `yaml:"strm"`
+	AuthServer    string     `yaml:"authServer"`
+	BaiDuPanAppId string     `yaml:"baiDuPanAppId"`
 }
 
 var GlobalConfig Config
@@ -92,27 +92,6 @@ func InitConfig() error {
 	if err := loadYaml(configPath, &GlobalConfig); err != nil {
 		return err
 	}
-	// GlobalConfig = Config{
-	// 	Log: configLog{
-	// 		File:     "logs/app.log",
-	// 		V115:     "logs/115.log",
-	// 		OpenList: "logs/openList.log",
-	// 		TMDB:     "logs/tmdb.log",
-	// 		BaiduPan: "logs/baidupan.log",
-	// 	},
-	// 	Db: configDb{
-	// 		Engine:     DbEngineUnset,
-	// 		SqliteFile: "qmediasync.db",
-	// 	},
-	// 	CacheSize:        20971520, // 默认20MB
-	// 	JwtSecret:        "Q115-STRM-JWT-TOKEN-250706",
-	// 	HttpHost:         ":12333",
-	// 	HttpsHost:        ":12332",
-	// 	Open115AppId:     "",
-	// 	Open115TestAppId: "",
-	// 	AuthServer:       "https://api.mqfamily.top",
-	// 	BaiDuPanAppId:    "QMediaSync",
-	// }
 	return nil
 }
 
