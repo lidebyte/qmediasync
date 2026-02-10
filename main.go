@@ -270,17 +270,17 @@ func getDataAndConfigDir() {
 		}
 		dataDir = filepath.Join(appData, AppName, "postgres") // 数据库目录
 		configDir = filepath.Join(appData, AppName, "config") // 配置目录
+		err := os.MkdirAll(dataDir, 0755)
+		if err != nil {
+			fmt.Printf("创建数据目录失败: %v\n", err)
+			panic("创建数据目录失败")
+		}
 	} else {
 		appData = helpers.RootDir
 		configDir = filepath.Join(appData, "config") // 配置目录
 		dataDir = filepath.Join(appData, "postgres") // 数据库目录
 	}
-	err := os.MkdirAll(dataDir, 0755)
-	if err != nil {
-		fmt.Printf("创建数据目录失败: %v\n", err)
-		panic("创建数据目录失败")
-	}
-	err = os.MkdirAll(configDir, 0755)
+	err := os.MkdirAll(configDir, 0755)
 	if err != nil {
 		fmt.Printf("创建配置目录失败: %v\n", err)
 		panic("创建配置目录失败")
