@@ -101,8 +101,35 @@ func GetLocalPath(parentPath string) ([]DirResp, error) {
 		}
 	} else {
 		if parentPath == "" {
-			// 获取根目录/的子目录列表
-			parentPath = "/"
+			// 如果是飞牛环境下，使用环境变量来获取有权限的目录
+			if os.Getenv("TRIM_DATA_ACCESSIBLE_PATHS") != "" {
+				helpers.AccessiblePaths = os.Getenv("TRIM_DATA_ACCESSIBLE_PATHS")
+			}
+			if os.Getenv("TRIM_DATA_SHARE_PATHS") != "" {
+				helpers.ShareDirs = os.Getenv("TRIM_DATA_SHARE_PATHS")
+			}
+			helpers.AppLogger.Infof("AccessiblePaths: %s", helpers.AccessiblePaths)
+			helpers.AppLogger.Infof("ShareDirs: %s", helpers.ShareDirs)
+			if helpers.AccessiblePaths != "" {
+				accessiblePaths := helpers.AccessiblePaths
+				sharePaths := helpers.ShareDirs
+				accessiblePaths = ":" + sharePaths
+				// 用冒号分割
+				paths := strings.Split(accessiblePaths, ":")
+				for _, path := range paths {
+					// 去掉首尾空格
+					path = strings.TrimSpace(path)
+					// 加入列表
+					pathes = append(pathes, DirResp{
+						Id:   path,
+						Name: filepath.Base(path),
+						Path: path,
+					})
+				}
+			} else {
+				// 获取根目录/的子目录列表
+				parentPath = "/"
+			}
 		}
 	}
 	if parentPath != "/" && runtime.GOOS != "windows" {
@@ -127,24 +154,26 @@ func GetLocalPath(parentPath string) ([]DirResp, error) {
 			Path: p,
 		})
 	}
-	// helpers.AppLogger.Infof("parentPath: %s", parentPath)
-	// 获取子目录列表
-	entries, err := os.ReadDir(parentPath)
-	if err != nil {
-		return nil, err
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			// 跳过隐藏目录
-			if strings.HasPrefix(entry.Name(), ".") {
-				continue
+	if parentPath == "" && len(pathes) == 0 {
+		// helpers.AppLogger.Infof("parentPath: %s", parentPath)
+		// 获取子目录列表
+		entries, err := os.ReadDir(parentPath)
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				// 跳过隐藏目录
+				if strings.HasPrefix(entry.Name(), ".") {
+					continue
+				}
+				fullPath := filepath.Join(parentPath, entry.Name())
+				pathes = append(pathes, DirResp{
+					Id:   fullPath,
+					Name: entry.Name(),
+					Path: fullPath,
+				})
 			}
-			fullPath := filepath.Join(parentPath, entry.Name())
-			pathes = append(pathes, DirResp{
-				Id:   fullPath,
-				Name: entry.Name(),
-				Path: fullPath,
-			})
 		}
 	}
 	return pathes, nil

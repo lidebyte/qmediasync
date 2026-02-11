@@ -72,12 +72,17 @@ type Config struct {
 	Strm          ConfigStrm `yaml:"strm"`
 	AuthServer    string     `yaml:"authServer"`
 	BaiDuPanAppId string     `yaml:"baiDuPanAppId"`
+	AdminUsername string     `yaml:"adminUsername"`
+	AdminPassword string     `yaml:"adminPassword"`
 }
 
 var GlobalConfig Config
 var RootDir string
 var ConfigDir string
 var DataDir string
+var ShareDirs string
+var AccessiblePaths string
+var IsFnOS bool
 var IsRelease bool
 var Guid string
 var FANART_API_KEY = ""
@@ -212,5 +217,7 @@ func MakeDefaultConfig() *Config {
 		HttpsHost:     ":12332",
 		AuthServer:    "https://api.mqfamily.top",
 		BaiDuPanAppId: "QMediaSync",
+		AdminUsername: "admin",
+		AdminPassword: "admin123",
 	}
 }

@@ -611,17 +611,17 @@ func InitSettings() {
 }
 
 func InitUser() {
-	password, _ := bcrypt.GenerateFromPassword([]byte("admin123"), bcrypt.MinCost)
+	password, _ := bcrypt.GenerateFromPassword([]byte(helpers.GlobalConfig.AdminPassword), bcrypt.MinCost)
 	defaultUser := User{
 		// 设置默认值
-		Username: "admin",
+		Username: helpers.GlobalConfig.AdminUsername,
 		Password: string(password),
 	}
 	uerr := db.Db.Model(&User{}).First(&defaultUser).Error
 	if errors.Is(uerr, gorm.ErrRecordNotFound) {
 		db.Db.Create(&defaultUser)
 	}
-	helpers.AppLogger.Info("已默认添加管理员用户")
+	helpers.AppLogger.Infof("已默认添加管理员用户：%s 密码：%s", helpers.GlobalConfig.AdminUsername, helpers.GlobalConfig.AdminPassword)
 }
 
 func InitScrapeSetting() {

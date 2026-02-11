@@ -36,6 +36,7 @@ var DEFAULT_TMDB_ACCESS_TOKEN = ""
 var DEFAULT_TMDB_API_KEY = ""
 var DEFAULT_SC_API_KEY = ""
 var ENCRYPTION_KEY = ""
+var Update bool = false
 
 var AppName string = "QMediaSync"
 var QMSApp *App
@@ -240,6 +241,10 @@ func checkRelease() {
 func getRootDir() string {
 	var exPath string = "/app" // 默认使用docker的路径
 	checkRelease()
+	if os.Getenv("TRIM_APPDEST") != "" {
+		helpers.RootDir = os.Getenv("TRIM_APPDEST")
+		return helpers.RootDir
+	}
 	if helpers.IsRelease {
 		ex, err := os.Executable()
 		if err != nil {
@@ -262,6 +267,7 @@ func getDataAndConfigDir() {
 	var appData string
 	var dataDir string
 	var configDir string
+	needMk := false
 	if runtime.GOOS == "windows" {
 		// 使用AppData目录，用户有完全控制权限
 		appData := os.Getenv("LOCALAPPDATA")
@@ -275,18 +281,31 @@ func getDataAndConfigDir() {
 			fmt.Printf("创建数据目录失败: %v\n", err)
 			panic("创建数据目录失败")
 		}
+		helpers.DataDir = dataDir
+		helpers.ConfigDir = configDir
 	} else {
-		appData = helpers.RootDir
-		configDir = filepath.Join(appData, "config") // 配置目录
-		dataDir = filepath.Join(appData, "postgres") // 数据库目录
+		if os.Getenv("TRIM_PKGETC") == "" {
+			appData = helpers.RootDir
+			configDir = filepath.Join(appData, "config") // 配置目录
+			dataDir = filepath.Join(appData, "postgres") // 数据库目录
+			needMk = true
+			helpers.DataDir = dataDir
+			helpers.ConfigDir = configDir
+		} else {
+			configDir = os.Getenv("TRIM_PKGETC")
+			dataDir = filepath.Join(configDir, "postgres") // 数据库目录
+			needMk = false
+			helpers.DataDir = dataDir
+			helpers.ConfigDir = configDir
+		}
 	}
-	err := os.MkdirAll(configDir, 0755)
-	if err != nil {
-		fmt.Printf("创建配置目录失败: %v\n", err)
-		panic("创建配置目录失败")
+	if needMk {
+		err := os.MkdirAll(configDir, 0755)
+		if err != nil {
+			log.Printf("创建配置目录失败: %v\n", err)
+			panic("创建配置目录失败")
+		}
 	}
-	helpers.DataDir = dataDir
-	helpers.ConfigDir = configDir
 }
 
 //go:embed emby302.yml
@@ -388,9 +407,13 @@ func initOthers() {
 
 // 设置路由
 func setRouter(r *gin.Engine) {
-	r.LoadHTMLFiles(filepath.Join(helpers.RootDir, "web_statics", "index.html"))
-	r.StaticFile("/favicon.ico", filepath.Join(helpers.RootDir, "web_statics", "favicon.ico"))
-	r.StaticFS("/assets", http.Dir(filepath.Join(helpers.RootDir, "web_statics", "assets")))
+	webStatisPath := filepath.Join(helpers.RootDir, "web_statics")
+	// if helpers.IsFnOS {
+	// 	webStatisPath = filepath.Join(helpers.RootDir, "www")
+	// }
+	r.LoadHTMLFiles(filepath.Join(webStatisPath, "index.html"))
+	r.StaticFile("/favicon.ico", filepath.Join(webStatisPath, "favicon.ico"))
+	r.StaticFS("/assets", http.Dir(filepath.Join(webStatisPath, "assets")))
 	r.GET("/", func(c *gin.Context) {
 		c.HTML(200, "index.html", gin.H{})
 	})
@@ -587,7 +610,6 @@ func initEnv() bool {
 	// 加载环境变量配置
 	helpers.LoadEnvFromFile(filepath.Join(helpers.RootDir, "config", ".env"))
 	initTimeZone()        // 设置东8区
-	getRootDir()          // 获取当前工作目录
 	getDataAndConfigDir() // 获取数据库数据目录和配置文件目录
 	log.Printf("当前工作目录:%s\n", helpers.RootDir)
 	log.Printf("当前数据目录：%s\n", helpers.DataDir)
@@ -638,34 +660,30 @@ func initEnv() bool {
 
 func parseParams() {
 	// 定义 guid 参数
-	var guid string
 	var update string
-	flag.StringVar(&guid, "guid", "", "GUID 参数")
+	flag.StringVar(&helpers.Guid, "guid", "", "GUID 参数")
+	flag.BoolVar(&helpers.IsFnOS, "fnos", false, "是否是飞牛环境")
 	flag.StringVar(&update, "update", "", "更新参数")
 	// 解析命令行参数
 	flag.Parse()
-
-	// 检查是否是更新模式
-	if update != "" && runtime.GOOS == "windows" {
-		runUpdateProcess()
-		os.Exit(0)
-	}
-
-	fmt.Printf("传入的 GUID: %s\n", guid)
 	// 使用参数
-	if guid != "" {
-		fmt.Printf("使用 GUID: %s 执行操作\n", guid)
-		helpers.Guid = guid
-	} else {
+	if helpers.IsFnOS {
+		log.Printf("当前环境为飞牛环境\n")
+	}
+	if helpers.Guid == "" {
 		// 检查是否有GUID环境变量，有的话直接使用
 		guidEnv := os.Getenv("GUID")
 		if guidEnv != "" {
-			fmt.Printf("使用环境变量 GUID: %s 执行操作\n", guidEnv)
+			log.Printf("使用环境变量 GUID: %s 执行操作\n", guidEnv)
 			helpers.Guid = guidEnv
 		} else {
-			fmt.Printf("使用 root 执行操作\n")
+			log.Printf("使用 root 执行操作\n")
 			helpers.Guid = ""
 		}
+	}
+	// 检查是否是更新模式
+	if update != "" && runtime.GOOS == "windows" {
+		Update = true
 	}
 }
 
@@ -681,8 +699,12 @@ func parseParams() {
 // @in query
 // @name api_key
 func main() {
-	getRootDir()
 	parseParams()
+	getRootDir()
+	if Update {
+		runUpdateProcess()
+		return
+	}
 	if !initEnv() {
 		return
 	}
