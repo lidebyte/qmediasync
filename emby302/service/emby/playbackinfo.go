@@ -116,7 +116,13 @@ func TransferPlaybackInfo(c *gin.Context) {
 		if strings.HasPrefix(embyPath, "/") || matchedWin {
 			return nil
 		}
-
+		var path string
+		var ok bool
+		// path 解码
+		if path, ok = source.Attr("Path").String(); ok {
+			source.Attr("Path").Set(urls.Unescape(path))
+		}
+		logs.Info("Path 解码后: %s", path)
 		// 转换直链链接
 		source.Put("SupportsDirectPlay", jsons.FromValue(true))
 		source.Put("SupportsDirectStream", jsons.FromValue(true))
@@ -124,13 +130,23 @@ func TransferPlaybackInfo(c *gin.Context) {
 			"/videos/%s/stream?MediaSourceId=%s&%s=%s&Static=true",
 			itemInfo.Id, source.Attr("Id").Val(), itemInfo.ApiKeyName, itemInfo.ApiKey,
 		)
-		source.Put("DirectStreamUrl", jsons.FromValue(newUrl))
+		if strings.Contains(path, "baidupan/url") {
+			logs.Success("发现百度网盘链接，发送一个请求拿到直链：%s", path)
+			location, lerr := https.GetLocation(path)
+			if lerr != nil {
+				logs.Error("请求302跳转链接失败：", lerr)
+				return lerr
+			}
+			logs.Success("百度网盘直链地址：%s", location)
+			if !strings.Contains(location, "proxy-115") {
+				// 设置中要求使用本地代理播放，返回默认值
+				newUrl = location
+			} else {
+				logs.Warn("直链地址包含 proxy-115，不能返回直链，要求回源处理")
+			}
 
-		// path 解码
-		if path, ok := source.Attr("Path").String(); ok {
-			source.Attr("Path").Set(urls.Unescape(path))
 		}
-
+		source.Put("DirectStreamUrl", jsons.FromValue(newUrl))
 		source.Put("SupportsTranscoding", jsons.FromValue(false))
 		source.DelKey("TranscodingUrl")
 		source.DelKey("TranscodingSubProtocol")
@@ -208,7 +224,8 @@ func handleSpecialPlayback(c *gin.Context, itemInfo ItemInfo) bool {
 		// 2. 以windows盘符开头, 正则匹配
 		pattern := `^[A-Za-z]:`
 		matchedWin, _ := regexp.MatchString(pattern, path)
-		if strings.HasPrefix(path, "/") || matchedWin {
+		// \\开头是Emby网络共享地址
+		if strings.HasPrefix(path, "/") || matchedWin || strings.HasPrefix(path, "\\") {
 			logs.Info("本地媒体: %s, 回源处理", path)
 			flag = true
 		}

@@ -180,9 +180,12 @@ func (m *movieScrapeImpl) Scrape(mediaFile *models.ScrapeMediaFile) error {
 		// 生成nfo
 		m.GenerateMovieNfo(mediaFile, localTempPath, nfoName, m.scrapePath.ExcludeNoImageActor)
 		fileList := map[string]string{}
-		fileList[m.GetMovieRealName(mediaFile, "poster.jpg", "image")] = mediaFile.Media.PosterPath
-		fileList[m.GetMovieRealName(mediaFile, "clearlogo.jpg", "image")] = mediaFile.Media.LogoPath
-		fileList[m.GetMovieRealName(mediaFile, "fanart.jpg", "image")] = mediaFile.Media.BackdropPath
+		posterExt := filepath.Ext(mediaFile.Media.PosterPath)
+		fileList[m.GetMovieRealName(mediaFile, fmt.Sprintf("poster%s", posterExt), "image")] = mediaFile.Media.PosterPath
+		logoExt := filepath.Ext(mediaFile.Media.LogoPath)
+		fileList[m.GetMovieRealName(mediaFile, fmt.Sprintf("clearlogo%s", logoExt), "image")] = mediaFile.Media.LogoPath
+		fanartExt := filepath.Ext(mediaFile.Media.BackdropPath)
+		fileList[m.GetMovieRealName(mediaFile, fmt.Sprintf("fanart%s", fanartExt), "image")] = mediaFile.Media.BackdropPath
 		m.DownloadImages(localTempPath, v115open.DEFAULTUA, fileList)
 		// 从fanart.tv查询图片并下载
 		if m.scrapePath.EnableFanartTv {
@@ -337,35 +340,53 @@ func (m *movieScrapeImpl) GetMovieUploadFiles(mediaFile *models.ScrapeMediaFile)
 	destPath := mediaFile.GetDestFullMoviePath()
 	destPathId := mediaFile.NewPathId
 	movieSourcePath := mediaFile.GetTmpFullMoviePath()
+	// 将movieSourcePath目录下所有文件全部上传
+	files, err := os.ReadDir(movieSourcePath)
+	if err != nil {
+		helpers.AppLogger.Errorf("读取目录 %s 失败: %v", movieSourcePath, err)
+		return nil
+	}
 	fileList := make([]uploadFile, 0)
-	nfoName := m.GetMovieRealName(mediaFile, "", "nfo")
-	nfoPath := filepath.Join(movieSourcePath, nfoName)
-	if helpers.PathExists(nfoPath) {
-		file := uploadFile{
+	for _, file := range files {
+		if file.IsDir() {
+			continue
+		}
+		fileList = append(fileList, uploadFile{
 			ID:         fmt.Sprintf("%d", mediaFile.ID),
-			FileName:   nfoName,
-			SourcePath: nfoPath,
+			FileName:   file.Name(),
+			SourcePath: filepath.Join(movieSourcePath, file.Name()),
 			DestPath:   destPath,
 			DestPathId: destPathId,
-		}
+		})
+	}
+	// nfoName := m.GetMovieRealName(mediaFile, "", "nfo")
+	// nfoPath := filepath.Join(movieSourcePath, nfoName)
+	// if helpers.PathExists(nfoPath) {
+	// 	file := uploadFile{
+	// 		ID:         fmt.Sprintf("%d", mediaFile.ID),
+	// 		FileName:   nfoName,
+	// 		SourcePath: nfoPath,
+	// 		DestPath:   destPath,
+	// 		DestPathId: destPathId,
+	// 	}
 
-		fileList = append(fileList, file)
-	}
-	imageList := []string{"poster.jpg", "clearlogo.jpg", "clearart.jpg", "square.jpg", "logo.jpg", "fanart.jpg", "backdrop.jpg", "background.jpg", "4kbackground.jpg", "thumb.jpg", "banner.jpg", "disc.jpg"}
-	for _, im := range imageList {
-		name := m.GetMovieRealName(mediaFile, im, "image")
-		sPath := filepath.Join(movieSourcePath, name)
-		if helpers.PathExists(sPath) {
-			file := uploadFile{
-				ID:         fmt.Sprintf("%d", mediaFile.ID),
-				FileName:   name,
-				SourcePath: sPath,
-				DestPath:   destPath,
-				DestPathId: destPathId,
-			}
-			fileList = append(fileList, file)
-		}
-	}
+	// 	fileList = append(fileList, file)
+	// }
+	// imageList := []string{"poster.jpg", "clearlogo.jpg", "clearart.jpg", "square.jpg", "logo.jpg", "fanart.jpg", "backdrop.jpg", "background.jpg", "4kbackground.jpg", "thumb.jpg", "banner.jpg", "disc.jpg"}
+	// for _, im := range imageList {
+	// 	name := m.GetMovieRealName(mediaFile, im, "image")
+	// 	sPath := filepath.Join(movieSourcePath, name)
+	// 	if helpers.PathExists(sPath) {
+	// 		file := uploadFile{
+	// 			ID:         fmt.Sprintf("%d", mediaFile.ID),
+	// 			FileName:   name,
+	// 			SourcePath: sPath,
+	// 			DestPath:   destPath,
+	// 			DestPathId: destPathId,
+	// 		}
+	// 		fileList = append(fileList, file)
+	// 	}
+	// }
 	return fileList
 }
 
@@ -473,23 +494,28 @@ func (m *movieScrapeImpl) CreateMediaFromNfo(mediaFile *models.ScrapeMediaFile) 
 		return err
 	}
 	helpers.AppLogger.Infof("已从nfo文件中读取到媒体信息，名称：%s, 年份：%d, 番号: %s, TmdbID: %d", movie.Title, movie.Year, movie.Num, movie.TmdbId)
-	media, _ := models.MakeMovieMediaFromNfo(movie)
-	existsMedia, _ := models.GetMediaByName(models.MediaTypeMovie, media.Name, media.Year)
+	var media *models.Media
+	existsMedia, _ := models.GetMediaByName(models.MediaTypeMovie, movie.Title, movie.Year)
 	if existsMedia != nil {
 		media = existsMedia
-		mediaFile.MediaId = media.ID
-		mediaFile.Media = media
 	} else {
-		media.Save()
+		media, _ = models.MakeMovieMediaFromNfo(movie)
+		err := media.Save()
+		if err != nil {
+			return err
+		}
 		helpers.AppLogger.Infof("使用nfo文件中的内容创建刮削信息，ID：%d, 名称：%s, 年份：%d, 番号: %s, TmdbID: %d", media.ID, movie.Title, movie.Year, movie.Num, movie.TmdbId)
 	}
-	if media.ID > 0 {
-		mediaFile.Name = media.Name
-		mediaFile.Year = media.Year
-		mediaFile.TmdbId = media.TmdbId
-		helpers.AppLogger.Infof("使用nfo中的信息补全刮削视频文件的信息，名称：%s, 年份：%d, 番号: %s, TmdbID: %d", media.Name, media.Year, movie.Num, media.TmdbId)
+	mediaFile.MediaId = media.ID
+	mediaFile.Media = media
+	mediaFile.Name = media.Name
+	mediaFile.Year = media.Year
+	mediaFile.TmdbId = media.TmdbId
+	helpers.AppLogger.Infof("使用nfo中的信息补全刮削视频文件的信息，名称：%s, 年份：%d, 番号: %s, TmdbID: %d", media.Name, media.Year, movie.Num, media.TmdbId)
+	fileErr := mediaFile.Save()
+	if fileErr != nil {
+		return fileErr
 	}
-	mediaFile.Save()
 	return nil
 }
 

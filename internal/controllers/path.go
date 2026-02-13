@@ -60,6 +60,8 @@ func GetPathList(c *gin.Context) {
 		pathes, err = GetOpenListPath(req.ParentId, req.AccountId)
 	case models.SourceType115:
 		pathes, err = Get115PathList(req.ParentId, req.AccountId)
+	case models.SourceTypeBaiduPan:
+		pathes, err = GetBaiduPanPathList(req.ParentId, req.AccountId)
 	default:
 		// 报错
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "未知的同步源类型", Data: nil})
@@ -80,9 +82,11 @@ func GetLocalPath(parentPath string) ([]DirResp, error) {
 	pathes := make([]DirResp, 0)
 	// windows
 	if runtime.GOOS == "windows" {
+		helpers.AppLogger.Infof("parentPath: %s", parentPath)
 		if parentPath == "" {
 			// 获取盘符列表
 			partitions, err := disk.Partitions(false)
+			helpers.AppLogger.Infof("partitions: %+v", partitions)
 			if err != nil {
 				helpers.AppLogger.Errorf("获取盘符失败：%v", err)
 				return nil, err
@@ -99,50 +103,56 @@ func GetLocalPath(parentPath string) ([]DirResp, error) {
 		}
 	} else {
 		if parentPath == "" {
-			// 获取根目录/的子目录列表
-			parentPath = "/"
-		}
-	}
-	if parentPath != "/" && runtime.GOOS != "windows" {
-		// 加入返回上级目录
-		p := filepath.Dir(parentPath)
-		pathes = append(pathes, DirResp{
-			Id:   p,
-			Name: "..",
-			Path: p,
-		})
-	}
-	if runtime.GOOS == "windows" && parentPath != "" {
-		var p string
-		if len(parentPath) == 3 && string(parentPath[1]) == ":" && string(parentPath[2]) == "\\" {
-			p = ""
-		} else {
-			p = filepath.Dir(parentPath)
-		}
-		pathes = append(pathes, DirResp{
-			Id:   p,
-			Name: "..",
-			Path: p,
-		})
-	}
-	// helpers.AppLogger.Infof("parentPath: %s", parentPath)
-	// 获取子目录列表
-	entries, err := os.ReadDir(parentPath)
-	if err != nil {
-		return nil, err
-	}
-	for _, entry := range entries {
-		if entry.IsDir() {
-			// 跳过隐藏目录
-			if strings.HasPrefix(entry.Name(), ".") {
-				continue
+			// 如果是飞牛环境下，使用环境变量来获取有权限的目录
+			if os.Getenv("TRIM_DATA_ACCESSIBLE_PATHS") != "" {
+				helpers.AccessiblePaths = os.Getenv("TRIM_DATA_ACCESSIBLE_PATHS")
 			}
-			fullPath := filepath.Join(parentPath, entry.Name())
-			pathes = append(pathes, DirResp{
-				Id:   fullPath,
-				Name: entry.Name(),
-				Path: fullPath,
-			})
+			if os.Getenv("TRIM_DATA_SHARE_PATHS") != "" {
+				helpers.ShareDirs = os.Getenv("TRIM_DATA_SHARE_PATHS")
+			}
+			helpers.AppLogger.Infof("AccessiblePaths: %s", helpers.AccessiblePaths)
+			helpers.AppLogger.Infof("ShareDirs: %s", helpers.ShareDirs)
+			if helpers.AccessiblePaths != "" {
+				accessiblePaths := helpers.AccessiblePaths
+				sharePaths := helpers.ShareDirs
+				accessiblePaths = ":" + sharePaths
+				// 用冒号分割
+				paths := strings.Split(accessiblePaths, ":")
+				for _, path := range paths {
+					// 去掉首尾空格
+					path = strings.TrimSpace(path)
+					// 加入列表
+					pathes = append(pathes, DirResp{
+						Id:   path,
+						Name: filepath.Base(path),
+						Path: path,
+					})
+				}
+			} else {
+				// 获取根目录/的子目录列表
+				parentPath = "/"
+			}
+		}
+	}
+	if (parentPath == "" && len(pathes) == 0) || runtime.GOOS == "windows" {
+		// 获取子目录列表
+		entries, err := os.ReadDir(parentPath)
+		if err != nil {
+			return nil, err
+		}
+		for _, entry := range entries {
+			if entry.IsDir() {
+				// 跳过隐藏目录
+				if strings.HasPrefix(entry.Name(), ".") {
+					continue
+				}
+				fullPath := filepath.Join(parentPath, entry.Name())
+				pathes = append(pathes, DirResp{
+					Id:   fullPath,
+					Name: entry.Name(),
+					Path: fullPath,
+				})
+			}
 		}
 	}
 	return pathes, nil
@@ -251,6 +261,46 @@ func Get115PathList(parentId string, accountId uint) ([]DirResp, error) {
 	return folders, nil
 }
 
+func GetBaiduPanPathList(parentId string, accountId uint) ([]DirResp, error) {
+	// 获取115目录列表
+	account, err := models.GetAccountById(accountId)
+	if err != nil {
+		return nil, err
+	}
+	client := account.GetBaiDuPanClient()
+	ctx := context.Background()
+	fileList, fileErr := client.GetFileList(ctx, parentId, 1, 0, 0, 100)
+	if fileErr != nil {
+		helpers.AppLogger.Warnf("获取百度网盘目录列表失败: 父目录：%s, 错误:%v", parentId, fileErr)
+		return nil, fileErr
+	}
+	// helpers.AppLogger.Infof("成功获取百度网盘文件列表, 父目录ID: %s, 文件数量: %d", parentId, len(resp.Data))
+	items := make([]DirResp, 0)
+	if parentId != "" && parentId != "/" {
+		// 需要加入回到上一级
+		parentParent := filepath.ToSlash(filepath.Dir(parentId))
+		if parentParent == "" || parentParent == "\\" {
+			parentParent = "/"
+		}
+		items = append(items, DirResp{
+			Id:   parentParent,
+			Name: "..",
+			Path: parentParent,
+		})
+	}
+	// 构建Path
+	for _, item := range fileList {
+		// 去掉item.Path开头的/
+		item.Path = strings.TrimPrefix(item.Path, "/")
+		items = append(items, DirResp{
+			Id:   item.Path,
+			Name: filepath.Base(item.Path),
+			Path: item.Path,
+		})
+	}
+	return items, nil
+}
+
 type FileItem struct {
 	Id          string `json:"id"`
 	IsDirectory bool   `json:"is_directory"`
@@ -289,6 +339,8 @@ func GetNetFileList(c *gin.Context) {
 		list, err = GetOpenListFiles(req.ParentId, account, req.Page, req.PageSize)
 	case models.SourceType115:
 		list, err = Get115Files(req.ParentId, account, req.Page, req.PageSize)
+	case models.SourceTypeBaiduPan:
+		list, err = GetBaiduPanFiles(req.ParentId, account, req.Page, req.PageSize)
 	default:
 		// 报错
 		c.JSON(http.StatusOK, APIResponse[any]{Code: BadRequest, Message: "未知的网盘类型", Data: nil})
@@ -354,4 +406,27 @@ func Get115Files(parentId string, account *models.Account, page, pageSize int) (
 	}
 	return items, nil
 
+}
+
+func GetBaiduPanFiles(parentId string, account *models.Account, page, pageSize int) ([]*FileItem, error) {
+	client := account.GetBaiDuPanClient()
+	ctx := context.Background()
+	fileList, fileErr := client.GetFileList(ctx, parentId, 0, 0, int32((page-1)*pageSize), int32(pageSize))
+	if fileErr != nil {
+		helpers.AppLogger.Warnf("获取百度网盘目录列表失败: 父目录：%s, 错误:%v", parentId, fileErr)
+		return nil, fileErr
+	}
+	// helpers.AppLogger.Infof("成功获取百度网盘文件列表, 父目录ID: %s, 文件数量: %d", parentId, len(resp.Data))
+	items := make([]*FileItem, 0)
+	// 构建Path
+	for _, item := range fileList {
+		items = append(items, &FileItem{
+			Id:          item.Path,
+			IsDirectory: item.IsDir == 1,
+			Name:        filepath.Base(item.Path),
+			Size:        int64(item.Size),
+			ModifiedAt:  int64(item.ServerMtime),
+		})
+	}
+	return items, nil
 }

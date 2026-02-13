@@ -1,6 +1,7 @@
 package models
 
 import (
+	"Q115-STRM/internal/baidupan"
 	"Q115-STRM/internal/db"
 	"Q115-STRM/internal/helpers"
 	"Q115-STRM/internal/notificationmanager"
@@ -28,17 +29,6 @@ type Account struct {
 
 func (account *Account) TableName() string {
 	return "account"
-}
-
-func (account *Account) GetAppId() string {
-	switch account.AppId {
-	case "Q115-STRM":
-		return helpers.GlobalConfig.Open115AppId
-	case "MQ的媒体库":
-		return helpers.GlobalConfig.Open115TestAppId
-	default:
-		return account.AppId
-	}
 }
 
 // 更新token和refreshToken
@@ -80,12 +70,15 @@ func (account *Account) UpdateUser(userId string, username string) bool {
 
 // 如果是normal模式，创建一个新的客户端，不启用限速器
 func (account *Account) Get115Client() *v115open.OpenClient {
-	appId := account.GetAppId()
-	return v115open.GetClient(account.ID, appId, account.Token, account.RefreshToken)
+	return v115open.GetClient(account.ID, account.AppId, account.Token, account.RefreshToken)
 }
 
 func (account *Account) GetOpenListClient() *openlist.Client {
 	return openlist.NewClient(account.ID, account.BaseUrl, account.Username, account.Password, account.Token)
+}
+
+func (account *Account) GetBaiDuPanClient() *baidupan.Client {
+	return baidupan.NewBaiDuPanClient(account.ID, account.Token)
 }
 
 func (account *Account) Delete() error {
