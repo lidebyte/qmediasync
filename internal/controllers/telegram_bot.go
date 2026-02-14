@@ -63,18 +63,13 @@ func checkAndExtractMoreParam(args []string) (string, []uint) {
 	return "", taskIDs
 }
 
-// runStrmTask 执行STRM同步任务并在完成后发送通知
+// runStrmTask 执行STRM同步任务
 // args: 可选参数，传入同步目录ID时只同步指定目录
 // isFullSync: 是否执行全量同步
-func runStrmTask(args []string, isFullSync bool) string {
-	// 检查参数格式
-	if errMsg, _ := checkAndExtractSingleParam(args); errMsg != "" {
-		return errMsg
-	}
-
+func runStrmTask(taskID uint, isFullSync bool) string {
 	// 先返回开始执行的消息
 	go func() {
-		var taskIDs []uint
+		taskIDs := []uint{}
 		var title, content string
 
 		// 设置通知信息
@@ -87,32 +82,26 @@ func runStrmTask(args []string, isFullSync bool) string {
 		}
 
 		// 检查是否传入了目录ID
-		if len(args) > 0 && args[0] != "" {
-			// 检查并提取参数
-			if _, taskID := checkAndExtractSingleParam(args); taskID > 0 {
-
-				// 获取指定同步目录
-				syncPath := models.GetSyncPathById(taskID)
-				if syncPath != nil {
-					// 如果是全量同步，设置标志
-					if isFullSync {
-						syncPath.SetIsFullSync(true)
-					}
-					// 同步指定目录
-					synccron.AddNewSyncTask(taskID, synccron.SyncTaskTypeStrm)
-					taskIDs = []uint{taskID}
-					// 设置通知内容
-					if isFullSync {
-						content = "目录：" + syncPath.RemotePath + "，全量STRM同步任务已执行完毕"
-					} else {
-						content = "目录：" + syncPath.RemotePath + "，增量STRM同步任务已执行完毕"
-					}
+		if taskID > 0 {
+			// 获取指定同步目录
+			syncPath := models.GetSyncPathById(taskID)
+			if syncPath != nil {
+				// 如果是全量同步，设置标志
+				if isFullSync {
+					syncPath.SetIsFullSync(true)
+				}
+				// 同步指定目录
+				synccron.AddNewSyncTask(taskID, synccron.SyncTaskTypeStrm)
+				taskIDs = []uint{taskID}
+				// 设置通知内容
+				if isFullSync {
+					content = "目录：" + syncPath.RemotePath + "，全量STRM同步任务已执行完毕"
+				} else {
+					content = "目录：" + syncPath.RemotePath + "，增量STRM同步任务已执行完毕"
 				}
 			}
-		}
 
-		// 如果没有指定目录，执行所有目录
-		if len(taskIDs) == 0 {
+		} else {
 			// 获取所有同步目录
 			allSyncPaths, _ := models.GetSyncPathList(1, 10000000, false)
 			for _, syncPath := range allSyncPaths {
@@ -130,11 +119,6 @@ func runStrmTask(args []string, isFullSync bool) string {
 			} else {
 				content = "目录：全部，增量STRM同步任务已执行完毕"
 			}
-		}
-
-		// 检查是否有任务
-		if len(taskIDs) == 0 {
-			return
 		}
 
 		// 等待所有任务执行完成
@@ -155,6 +139,7 @@ func runStrmTask(args []string, isFullSync bool) string {
 		if notificationmanager.GlobalEnhancedNotificationManager != nil {
 			notificationmanager.GlobalEnhancedNotificationManager.SendNotification(ctx, notif)
 		}
+
 	}()
 
 	// 返回开始执行的消息
@@ -165,16 +150,11 @@ func runStrmTask(args []string, isFullSync bool) string {
 }
 
 // runScrapeTask 执行刮削任务并在完成后发送通知
-// args: 可选参数，传入刮削目录ID时只执行指定目录
-func runScrapeTask(args []string) string {
-	// 检查参数格式
-	if errMsg, _ := checkAndExtractSingleParam(args); errMsg != "" {
-		return errMsg
-	}
-
+// taskID: 刮削目录ID，传入0时执行所有目录
+func runScrapeTask(taskID uint) string {
 	// 先返回开始执行的消息
 	go func() {
-		var taskIDs []uint
+		taskIDs := []uint{}
 		var title, content string
 
 		// 设置通知信息
@@ -182,24 +162,18 @@ func runScrapeTask(args []string) string {
 		content = "所有刮削任务已执行完毕"
 
 		// 检查是否传入了目录ID
-		if len(args) > 0 && args[0] != "" {
-			// 检查并提取参数
-			if _, taskID := checkAndExtractSingleParam(args); taskID > 0 {
-
-				// 获取指定刮削目录
-				scrapePath := models.GetScrapePathByID(taskID)
-				if scrapePath != nil {
-					// 执行刮削任务
-					synccron.AddNewSyncTask(taskID, synccron.SyncTaskTypeScrape)
-					taskIDs = []uint{taskID}
-					// 设置通知内容
-					content = "目录：" + scrapePath.SourcePath + "，刮削任务已执行完毕"
-				}
+		if taskID > 0 {
+			// 获取指定刮削目录
+			scrapePath := models.GetScrapePathByID(taskID)
+			if scrapePath != nil {
+				// 执行刮削任务
+				synccron.AddNewSyncTask(taskID, synccron.SyncTaskTypeScrape)
+				taskIDs = []uint{taskID}
+				// 设置通知内容
+				content = "目录：" + scrapePath.SourcePath + "，刮削任务已执行完毕"
 			}
-		}
 
-		// 如果没有指定目录，执行所有目录
-		if len(taskIDs) == 0 {
+		} else {
 			// 获取所有刮削目录
 			allScrapePaths := models.GetScrapePathes()
 			for _, scrapePath := range allScrapePaths {
@@ -209,11 +183,6 @@ func runScrapeTask(args []string) string {
 			}
 			// 设置通知内容
 			content = "目录：全部，刮削任务已执行完毕"
-		}
-
-		// 检查是否有任务
-		if len(taskIDs) == 0 {
-			return
 		}
 
 		// 等待所有任务执行完成
@@ -234,6 +203,7 @@ func runScrapeTask(args []string) string {
 		if notificationmanager.GlobalEnhancedNotificationManager != nil {
 			notificationmanager.GlobalEnhancedNotificationManager.SendNotification(ctx, notif)
 		}
+
 	}()
 
 	// 返回开始执行的消息
@@ -243,19 +213,31 @@ func runScrapeTask(args []string) string {
 // SyncStrmInc 执行增量STRM同步并在完成后发送通知
 // args: 可选参数，传入同步目录ID时只同步指定目录
 func SyncStrmInc(args []string) string {
-	return runStrmTask(args, false)
+	if errMsg, _ := checkAndExtractSingleParam(args); errMsg != "" {
+		return errMsg
+	}
+	_, taskID := checkAndExtractSingleParam(args)
+	return runStrmTask(taskID, false)
 }
 
 // SyncStrnFull 执行全量STRM同步并在完成后发送通知
 // args: 可选参数，传入同步目录ID时只同步指定目录
 func SyncStrnFull(args []string) string {
-	return runStrmTask(args, true)
+	if errMsg, _ := checkAndExtractSingleParam(args); errMsg != "" {
+		return errMsg
+	}
+	_, taskID := checkAndExtractSingleParam(args)
+	return runStrmTask(taskID, true)
 }
 
 // Scrape 执行刮削任务并在完成后发送通知
 // args: 可选参数，传入刮削目录ID时只执行指定目录的刮削
 func Scrape(args []string) string {
-	return runScrapeTask(args)
+	if errMsg, _ := checkAndExtractSingleParam(args); errMsg != "" {
+		return errMsg
+	}
+	_, taskID := checkAndExtractSingleParam(args)
+	return runScrapeTask(taskID)
 }
 
 // waitForTasksCompletion 等待指定任务完成
@@ -278,62 +260,19 @@ func waitForTasksCompletion(taskIDs []uint, taskType synccron.SyncTaskType) {
 }
 
 // runScrapeThenSync 先执行刮削任务，完成后再执行同步任务
-// args: 参数格式为 #数字 #数字，分别代表刮削目录ID和同步目录ID
+// extractedIDs: 包含刮削目录ID和同步目录ID的数组，分别代表刮削目录ID和同步目录ID
 // 如果参数为0，则执行所有目录的操作
-func runScrapeThenSync(args []string, title string) string {
-	// 检查参数格式
-	if errMsg, _ := checkAndExtractMoreParam(args); errMsg != "" {
-		return errMsg
-	}
-
+func runScrapeThenSync(extractedIDs []uint) string {
 	// 先返回开始执行的消息
 	go func() {
-		// 解析参数
-		_, extractedIDs := checkAndExtractMoreParam(args)
-		taskIDs := make([]uint, 2)
-		handleAllPaths := make([]bool, 2)
-		for i := range handleAllPaths {
-			handleAllPaths[i] = true
-		}
-
-		for i := 0; i < 2 && i < len(extractedIDs); i++ {
-			id := extractedIDs[i]
-			taskIDs[i] = id
-			handleAllPaths[i] = (id == 0)
-		}
-
-		// 记录任务执行情况
-		var taskResults []string
-
 		// 执行刮削任务
 		{
-			var currentTaskIDs []uint
-
-			if handleAllPaths[0] {
-				// 执行所有刮削目录的任务
-				allScrapePaths := models.GetScrapePathes()
-				for _, scrapePath := range allScrapePaths {
-					// 执行刮削任务
-					synccron.AddNewSyncTask(scrapePath.ID, synccron.SyncTaskTypeScrape)
-					currentTaskIDs = append(currentTaskIDs, scrapePath.ID)
-				}
-				taskResults = append(taskResults, "目录：全部，刮削已完成")
-			} else {
-				// 执行指定刮削目录的任务
-				scrapePath := models.GetScrapePathByID(taskIDs[0])
-				if scrapePath != nil {
-					// 执行刮削任务
-					synccron.AddNewSyncTask(taskIDs[0], synccron.SyncTaskTypeScrape)
-					currentTaskIDs = []uint{taskIDs[0]}
-					taskResults = append(taskResults, "目录："+scrapePath.SourcePath+"，刮削已完成")
-				}
+			// 调用 runScrapeTask 执行刮削任务
+			var scrapeTaskID uint
+			if len(extractedIDs) > 0 && extractedIDs[0] > 0 {
+				scrapeTaskID = extractedIDs[0]
 			}
-
-			// 等待任务开始执行
-			time.Sleep(5 * time.Second)
-
-			// 监控任务完成
-			waitForTasksCompletion(currentTaskIDs, synccron.SyncTaskTypeScrape)
+			runScrapeTask(scrapeTaskID)
 
 			// 等待上传下载任务完成
 			time.Sleep(15 * time.Second)
@@ -341,49 +280,20 @@ func runScrapeThenSync(args []string, title string) string {
 
 		// 执行同步任务
 		{
-			var currentTaskIDs []uint
-
-			if handleAllPaths[1] {
-				// 执行所有同步目录的任务
-				allSyncPaths, _ := models.GetSyncPathList(1, 10000000, false)
-				for _, syncPath := range allSyncPaths {
-					// 同步目录
-					synccron.AddNewSyncTask(syncPath.ID, synccron.SyncTaskTypeStrm)
-					currentTaskIDs = append(currentTaskIDs, syncPath.ID)
-				}
-				taskResults = append(taskResults, "目录：全部，增量STRM同步已完成")
-			} else {
-				// 执行指定同步目录的任务
-				syncPath := models.GetSyncPathById(taskIDs[1])
-				if syncPath != nil {
-					synccron.AddNewSyncTask(taskIDs[1], synccron.SyncTaskTypeStrm)
-					currentTaskIDs = []uint{taskIDs[1]}
-					taskResults = append(taskResults, "目录："+syncPath.RemotePath+"，增量STRM同步已完成")
-				}
+			// 调用 runStrmTask 执行同步任务
+			var syncTaskID uint
+			if len(extractedIDs) > 1 && extractedIDs[1] > 0 {
+				syncTaskID = extractedIDs[1]
 			}
-
-			// 等待任务开始执行
-			time.Sleep(5 * time.Second)
-
-			// 监控任务完成
-			waitForTasksCompletion(currentTaskIDs, synccron.SyncTaskTypeStrm)
-		}
-
-		// 构建通知内容
-		content := ""
-		for _, result := range taskResults {
-			content += result + "\n"
-		}
-		if content == "" {
-			content = "所有任务已全部执行完毕"
+			runStrmTask(syncTaskID, false)
 		}
 
 		// 发送完成通知
 		ctx := context.Background()
 		notif := &models.Notification{
 			Type:      models.SystemAlert,
-			Title:     title,
-			Content:   content,
+			Title:     "✅ 任务序列执行完成",
+			Content:   "所有任务已全部执行完毕",
 			Timestamp: time.Now(),
 			Priority:  models.NormalPriority,
 		}
@@ -396,61 +306,19 @@ func runScrapeThenSync(args []string, title string) string {
 }
 
 // runSyncThenScrape 先执行同步任务，完成后再执行刮削任务
-// args: 参数格式为 #数字 #数字，分别代表同步目录ID和刮削目录ID
+// extractedIDs: 包含同步目录ID和刮削目录ID的数组，分别代表同步目录ID和刮削目录ID
 // 如果参数为0，则执行所有目录的操作
-func runSyncThenScrape(args []string, title string) string {
-	// 检查参数格式
-	if errMsg, _ := checkAndExtractMoreParam(args); errMsg != "" {
-		return errMsg
-	}
-
+func runSyncThenScrape(extractedIDs []uint) string {
 	// 先返回开始执行的消息
 	go func() {
-		// 解析参数
-		_, extractedIDs := checkAndExtractMoreParam(args)
-		taskIDs := make([]uint, 2)
-		handleAllPaths := make([]bool, 2)
-		for i := range handleAllPaths {
-			handleAllPaths[i] = true
-		}
-
-		for i := 0; i < 2 && i < len(extractedIDs); i++ {
-			id := extractedIDs[i]
-			taskIDs[i] = id
-			handleAllPaths[i] = (id == 0)
-		}
-
-		// 记录任务执行情况
-		var taskResults []string
-
 		// 执行同步任务
 		{
-			var currentTaskIDs []uint
-
-			if handleAllPaths[0] {
-				// 执行所有同步目录的任务
-				allSyncPaths, _ := models.GetSyncPathList(1, 10000000, false)
-				for _, syncPath := range allSyncPaths {
-					// 同步目录
-					synccron.AddNewSyncTask(syncPath.ID, synccron.SyncTaskTypeStrm)
-					currentTaskIDs = append(currentTaskIDs, syncPath.ID)
-				}
-				taskResults = append(taskResults, "目录：全部，增量STRM同步已完成")
-			} else {
-				// 执行指定同步目录的任务
-				syncPath := models.GetSyncPathById(taskIDs[0])
-				if syncPath != nil {
-					synccron.AddNewSyncTask(taskIDs[0], synccron.SyncTaskTypeStrm)
-					currentTaskIDs = []uint{taskIDs[0]}
-					taskResults = append(taskResults, "目录："+syncPath.RemotePath+"，增量STRM同步已完成")
-				}
+			// 调用 runStrmTask 执行同步任务
+			var syncTaskID uint
+			if len(extractedIDs) > 0 && extractedIDs[0] > 0 {
+				syncTaskID = extractedIDs[0]
 			}
-
-			// 等待任务开始执行
-			time.Sleep(5 * time.Second)
-
-			// 监控任务完成
-			waitForTasksCompletion(currentTaskIDs, synccron.SyncTaskTypeStrm)
+			runStrmTask(syncTaskID, false)
 
 			// 等待上传下载任务完成
 			time.Sleep(15 * time.Second)
@@ -458,57 +326,50 @@ func runSyncThenScrape(args []string, title string) string {
 
 		// 执行刮削任务
 		{
-			var currentTaskIDs []uint
 			var hasNewScrapeFiles bool
 
-			if handleAllPaths[1] {
-				// 执行所有刮削目录的任务
+			// 检查是否有新文件
+			if len(extractedIDs) == 0 || extractedIDs[1] == 0 {
+				// 检查所有刮削目录是否有新文件
 				allScrapePaths := models.GetScrapePathes()
 				for _, scrapePath := range allScrapePaths {
-					// 刮削开始前检查是否有新文件
 					newScrapeFilesCount := models.GetScannedScrapeMediaFilesTotal(scrapePath.ID, scrapePath.MediaType)
 					if newScrapeFilesCount > 0 {
 						hasNewScrapeFiles = true
+						break
 					}
-					// 执行刮削任务
-					synccron.AddNewSyncTask(scrapePath.ID, synccron.SyncTaskTypeScrape)
-					currentTaskIDs = append(currentTaskIDs, scrapePath.ID)
 				}
-				taskResults = append(taskResults, "目录：全部，刮削已完成")
 			} else {
-				// 执行指定刮削目录的任务
-				scrapePath := models.GetScrapePathByID(taskIDs[1])
+				// 检查指定刮削目录是否有新文件
+				taskID := extractedIDs[1]
+				scrapePath := models.GetScrapePathByID(taskID)
 				if scrapePath != nil {
-					// 刮削开始前检查是否有新文件
 					newScrapeFilesCount := models.GetScannedScrapeMediaFilesTotal(scrapePath.ID, scrapePath.MediaType)
 					if newScrapeFilesCount > 0 {
 						hasNewScrapeFiles = true
 					}
-					// 执行刮削任务
-					synccron.AddNewSyncTask(taskIDs[1], synccron.SyncTaskTypeScrape)
-					currentTaskIDs = []uint{taskIDs[1]}
-					taskResults = append(taskResults, "目录："+scrapePath.SourcePath+"，刮削已完成")
 				}
 			}
 
-			// 等待任务开始执行
-			time.Sleep(5 * time.Second)
-
-			// 监控任务完成
-			waitForTasksCompletion(currentTaskIDs, synccron.SyncTaskTypeScrape)
+			// 执行刮削任务
+			var scrapeTaskID uint
+			if len(extractedIDs) > 1 && extractedIDs[1] > 0 {
+				scrapeTaskID = extractedIDs[1]
+			}
+			runScrapeTask(scrapeTaskID)
 
 			// 刮削任务完成后，如果有新文件，触发Emby媒体库刷新
 			if hasNewScrapeFiles {
 				var refreshIDs []uint
 				// 使用同步任务的ID（第一个任务）
-				if !handleAllPaths[0] && taskIDs[0] > 0 {
+				if len(extractedIDs) > 0 && extractedIDs[0] > 0 {
 					// 使用同步任务的ID
-					syncPath := models.GetSyncPathById(taskIDs[0])
+					syncPath := models.GetSyncPathById(extractedIDs[0])
 					if syncPath != nil {
-						refreshIDs = append(refreshIDs, taskIDs[0])
-						helpers.AppLogger.Infof("添加同步目录到Emby刷新列表: %s (ID: %d)", syncPath.RemotePath, taskIDs[0])
+						refreshIDs = append(refreshIDs, extractedIDs[0])
+						helpers.AppLogger.Infof("添加同步目录到Emby刷新列表: %s (ID: %d)", syncPath.RemotePath, extractedIDs[0])
 					}
-				} else if handleAllPaths[0] {
+				} else if len(extractedIDs) == 0 || extractedIDs[0] == 0 {
 					// 如果是全部同步，使用所有同步目录的ID
 					allSyncPaths, _ := models.GetSyncPathList(1, 10000000, true)
 					for _, syncPath := range allSyncPaths {
@@ -531,21 +392,12 @@ func runSyncThenScrape(args []string, title string) string {
 			}
 		}
 
-		// 构建通知内容
-		content := ""
-		for _, result := range taskResults {
-			content += result + "\n"
-		}
-		if content == "" {
-			content = "所有任务已全部执行完毕"
-		}
-
 		// 发送完成通知
 		ctx := context.Background()
 		notif := &models.Notification{
 			Type:      models.SystemAlert,
-			Title:     title,
-			Content:   content,
+			Title:     "✅ 任务序列执行完成",
+			Content:   "所有任务已全部执行完毕",
 			Timestamp: time.Now(),
 			Priority:  models.NormalPriority,
 		}
@@ -561,14 +413,32 @@ func runSyncThenScrape(args []string, title string) string {
 // args: 参数格式为 #数字 #数字，分别代表刮削目录ID和同步目录ID
 // 如果参数为0，则执行所有目录的操作
 func ScrapeThenSync(args []string) string {
-	return runScrapeThenSync(args, "✅ 刮削后同步完成")
+	// 检查参数格式
+	if errMsg, _ := checkAndExtractMoreParam(args); errMsg != "" {
+		return errMsg
+	}
+
+	// 解析参数
+	_, extractedIDs := checkAndExtractMoreParam(args)
+
+	// 调用 runScrapeThenSync 执行任务序列
+	return runScrapeThenSync(extractedIDs)
 }
 
 // SyncThenScrape 先执行同步任务，完成后再执行刮削任务
 // args: 参数格式为 #数字 #数字，分别代表同步目录ID和刮削目录ID
 // 如果参数为0，则执行所有目录的操作
 func SyncThenScrape(args []string) string {
-	return runSyncThenScrape(args, "✅ 同步后刮削完成")
+	// 检查参数格式
+	if errMsg, _ := checkAndExtractMoreParam(args); errMsg != "" {
+		return errMsg
+	}
+
+	// 解析参数
+	_, extractedIDs := checkAndExtractMoreParam(args)
+
+	// 调用 runSyncThenScrape 执行任务序列
+	return runSyncThenScrape(extractedIDs)
 }
 
 func StartListenTelegramBot() {
